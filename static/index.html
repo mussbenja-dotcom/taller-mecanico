@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TallerPro — Sistema de Gestión</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { sans: ['Inter','sans-serif'] },
+  colors: {
+    background:'#0f172a', surface:'#1e293b', surfaceHover:'#334155', border:'#334155',
+    textMain:'#f8fafc', textMuted:'#94a3b8', primary:'#3b82f6', primaryHover:'#2563eb', success:'#10b981'
+  }
+}}}
+</script>
+<style type="text/tailwindcss">
+@layer components {
+  .input-premium { @apply bg-surface border border-border text-textMain rounded-lg px-3 py-2.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-textMuted/50; }
+  .btn-premium { @apply rounded-lg px-4 py-2 font-medium transition-all active:scale-95 flex items-center justify-center gap-2; }
+  .nav-item { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-textMuted hover:bg-surfaceHover hover:text-textMain transition-all cursor-pointer; }
+  .nav-item.active { @apply bg-primary/10 text-primary font-semibold; }
+}
+body { font-family:'Inter',sans-serif; background:#0f172a; color:#f8fafc; }
+.view-section { display:none; }
+.view-section.active { display:block; animation:fadeIn .3s ease-out; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+::-webkit-scrollbar { width:8px; }
+::-webkit-scrollbar-track { background:#0f172a; }
+::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+.doc { @apply bg-background border border-border rounded-lg p-3 mb-2; }
+.badge-estado { @apply text-xs px-2 py-0.5 rounded-full font-semibold; }
+.est-pendiente { @apply bg-amber-500/20 text-amber-400; }
+.est-finalizada { @apply bg-success/20 text-success; }
+.est-cobrada { @apply bg-primary/20 text-primary; }
+</style>
+</head>
+<body class="flex h-screen overflow-hidden antialiased">
+
+<!-- SIDEBAR -->
+<aside class="w-64 bg-surface border-r border-border flex flex-col h-full flex-shrink-0 z-20">
+  <div class="h-16 flex items-center px-6 border-b border-border">
+    <div class="flex items-center gap-3 text-xl font-bold">
+      <div class="w-8 h-8 rounded bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center"><i class="fa-solid fa-wrench text-white text-sm"></i></div>
+      <span>Taller<span class="text-primary">Pro</span></span>
+    </div>
+  </div>
+  <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+    <div class="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3 px-2">Gestión</div>
+    <a onclick="irA('clientes')" class="nav-item active" data-target="clientes"><i class="fa-solid fa-users w-5 text-center"></i> Clientes</a>
+    <a onclick="irADentroCliente('vehículos')" class="nav-item" data-target="vehiculos"><i class="fa-solid fa-car w-5 text-center"></i> Vehículos</a>
+    <a onclick="irADentroCliente('presupuestos')" class="nav-item" data-target="presupuestos"><i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Presupuestos</a>
+    <a onclick="irADentroCliente('órdenes')" class="nav-item" data-target="ordenes"><i class="fa-solid fa-clipboard-list w-5 text-center"></i> Órdenes</a>
+    <a onclick="irA('stock')" class="nav-item" data-target="stock"><i class="fa-solid fa-box-open w-5 text-center"></i> Stock <span id="alertaStock" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 hidden"></span></a>
+    <div class="mt-8 mb-3 px-2 flex items-center gap-2">
+      <span class="text-xs font-semibold text-textMuted uppercase tracking-wider">Avanzado</span>
+      <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">IA</span>
+    </div>
+    <a onclick="irA('metricas')" class="nav-item" data-target="metricas"><i class="fa-solid fa-chart-pie w-5 text-center"></i> Métricas</a>
+    <a onclick="irA('diagnostico')" class="nav-item" data-target="diagnostico"><i class="fa-solid fa-microchip w-5 text-center text-purple-400"></i> Diagnóstico IA</a>
+  </nav>
+  <div class="p-4 border-t border-border">
+    <div id="usuarioLogueado" class="hidden mb-2 text-sm text-textMuted px-1"><i class="fa-solid fa-user-check text-success"></i> <span id="nombreUsuario"></span></div>
+    <button id="btnLogin" onclick="abrirLogin()" class="w-full btn-premium bg-surfaceHover border border-border hover:bg-border text-textMain"><i class="fa-solid fa-right-to-bracket text-textMuted"></i><span>Iniciar sesión</span></button>
+    <button id="btnLogout" onclick="cerrarSesion()" class="hidden w-full btn-premium bg-surfaceHover border border-border hover:bg-border text-textMain"><i class="fa-solid fa-right-from-bracket text-textMuted"></i><span>Cerrar sesión</span></button>
+  </div>
+</aside>
+
+<!-- CONTENIDO -->
+<main class="flex-1 h-full bg-background relative overflow-y-auto">
+<div class="max-w-7xl mx-auto p-6 h-full">
+
+  <!-- CLIENTES -->
+  <section id="view-clientes" class="view-section active h-full flex flex-col">
+    <div id="avisoDentroCliente" class="hidden mb-4 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary flex items-center gap-2">
+      <i class="fa-solid fa-circle-info"></i><span></span></div>
+    <div class="mb-6"><h1 class="text-2xl font-bold">Directorio de Clientes</h1>
+      <p class="text-sm text-textMuted mt-1">Gestioná tus clientes y sus vehículos.</p></div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+      <div class="lg:col-span-1 bg-surface border border-border rounded-xl flex flex-col overflow-hidden">
+        <div class="p-4 border-b border-border space-y-3">
+          <div class="relative"><i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
+            <input id="busqueda" type="text" placeholder="Buscar cliente..." class="input-premium w-full !pl-10" onkeyup="if(event.key==='Enter')cargarClientes()"></div>
+          <button onclick="nuevoCliente()" class="w-full btn-premium bg-success/10 text-success border border-success/20 hover:bg-success hover:text-white"><i class="fa-solid fa-plus"></i> Nuevo cliente</button>
+        </div>
+        <ul id="listaClientes" class="flex-1 overflow-y-auto p-3 space-y-2"></ul>
+      </div>
+      <div class="lg:col-span-2 bg-surface border border-border rounded-xl flex flex-col overflow-y-auto" id="panelDerecho">
+        <div id="vacioDetalle" class="flex-1 flex flex-col items-center justify-center p-8 text-center text-textMuted">
+          <i class="fa-solid fa-hand-pointer text-3xl mb-3"></i><p>Seleccioná un cliente o creá uno nuevo.</p></div>
+        <div id="formCliente" class="hidden p-6 space-y-4">
+          <h2 id="tituloCliente" class="text-lg font-semibold flex items-center gap-2"><i class="fa-solid fa-user-plus text-primary"></i> Nuevo cliente</h2>
+          <div><label class="block text-sm text-textMuted mb-1">Nombre *</label><input id="c_nombre" class="input-premium w-full" placeholder="Nombre y apellido"></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm text-textMuted mb-1">Teléfono (con código país)</label><input id="c_telefono" class="input-premium w-full" placeholder="5493462123456"></div>
+            <div><label class="block text-sm text-textMuted mb-1">Email</label><input id="c_email" class="input-premium w-full"></div>
+          </div>
+          <div><label class="block text-sm text-textMuted mb-1">Dirección</label><input id="c_direccion" class="input-premium w-full"></div>
+          <div><label class="block text-sm text-textMuted mb-1">Notas</label><textarea id="c_notas" rows="2" class="input-premium w-full resize-none"></textarea></div>
+          <div class="flex justify-end gap-3"><button onclick="cancelarForm()" class="btn-premium border border-border hover:bg-background">Cancelar</button>
+            <button onclick="guardarCliente()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-save"></i> Guardar</button></div>
+        </div>
+        <div id="detalleCliente" class="hidden p-6"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STOCK -->
+  <section id="view-stock" class="view-section h-full flex flex-col">
+    <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Inventario</h1>
+      <p class="text-sm text-textMuted mt-1">Controlá tus repuestos.</p></div>
+      <button onclick="formRepuesto()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nuevo repuesto</button></div>
+    <div class="bg-surface border border-border rounded-xl flex-1 flex flex-col">
+      <div class="p-4 border-b border-border flex gap-3">
+        <div class="relative flex-1"><i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
+          <input id="busquedaRep" class="input-premium w-full !pl-10" placeholder="Buscar repuesto..." onkeyup="if(event.key==='Enter')cargarRepuestos()"></div>
+        <button onclick="cargarRepuestos()" class="btn-premium bg-surfaceHover border border-border hover:text-white">Buscar</button>
+      </div>
+      <div id="formRepuestoCont" class="px-4"></div>
+      <div id="listaRepuestos" class="flex-1 overflow-y-auto p-4"></div>
+    </div>
+  </section>
+
+  <!-- MÉTRICAS -->
+  <section id="view-metricas" class="view-section h-full flex flex-col">
+    <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Resumen del mes</h1>
+      <p class="text-sm text-textMuted mt-1">Los números que importan.</p></div>
+      <div class="flex gap-2"><select id="metMes" class="input-premium"></select><select id="metAnio" class="input-premium"></select>
+        <button onclick="cargarMetricas()" class="btn-premium bg-primary hover:bg-primaryHover text-white">Ver</button></div></div>
+    <div id="contenidoMetricas"></div>
+  </section>
+
+  <!-- DIAGNÓSTICO IA -->
+  <section id="view-diagnostico" class="view-section h-full">
+    <div class="mb-6"><h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Asistente de Diagnóstico IA</h1>
+      <p class="text-sm text-textMuted mt-1">Describí los síntomas del vehículo y la IA sugiere posibles fallas.</p></div>
+    <div class="bg-surface border border-purple-500/20 rounded-xl overflow-hidden">
+      <div id="iaEstado" class="p-4 bg-purple-500/10 border-b border-purple-500/20 flex items-center gap-3 text-sm text-purple-200">
+        <i class="fa-solid fa-circle-info text-purple-400"></i><span>Verificando conexión con la IA...</span></div>
+      <div class="p-6">
+        <label class="block text-xs font-semibold text-textMuted uppercase mb-2">Síntomas del vehículo</label>
+        <textarea id="iaSintomas" rows="4" class="input-premium w-full resize-none" placeholder="Ej: El auto tiembla al frenar a más de 80km/h y hace un ruido metálico..."></textarea>
+        <div class="flex justify-end mt-3">
+          <button onclick="analizarIA()" id="btnIA" class="btn-premium bg-purple-600 hover:bg-purple-500 text-white"><i class="fa-solid fa-wand-magic-sparkles"></i> Analizar síntomas</button></div>
+        <div id="iaResultado" class="mt-4"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<!-- MODAL LOGIN -->
+<div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+  <div class="bg-surface border border-border rounded-2xl p-8 max-w-sm w-full mx-4 relative">
+    <button onclick="cerrarLogin()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-background flex items-center justify-center text-textMuted hover:text-textMain"><i class="fa-solid fa-xmark"></i></button>
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 bg-gradient-to-br from-primary/20 to-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20"><i class="fa-solid fa-shield-halved text-2xl text-primary"></i></div>
+      <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a TallerPro</p>
+    </div>
+    <div class="space-y-4">
+      <div><label class="block text-sm text-textMuted mb-1.5">Usuario</label>
+        <div class="relative"><i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
+          <input id="loginUser" type="text" value="admin" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important"></div></div>
+      <div><label class="block text-sm text-textMuted mb-1.5">Contraseña</label>
+        <div class="relative"><i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
+          <input id="loginPass" type="password" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important" onkeyup="if(event.key==='Enter')hacerLogin()"></div></div>
+      <div id="loginError" class="hidden text-sm text-red-400"></div>
+      <button onclick="hacerLogin()" class="w-full btn-premium bg-primary hover:bg-primaryHover text-white py-2.5">Ingresar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL QR -->
+<div id="modalQR" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarQR()">
+  <div class="bg-surface border border-border rounded-2xl p-6 text-center max-w-sm w-full mx-4">
+    <h2 class="text-lg font-bold text-primary mb-3">QR del vehículo</h2>
+    <img id="qrImg" class="w-52 h-52 bg-white p-2 rounded-lg mx-auto">
+    <p class="text-textMuted text-xs my-3">Pegalo en el auto. Al escanearlo muestra el historial completo.</p>
+    <div class="text-left border-t border-border pt-3 mt-1">
+      <label class="block text-xs text-textMuted mb-1">Nota opcional (aparece en el QR, arriba del historial)</label>
+      <textarea id="qrNota" rows="2" class="input-premium w-full text-sm resize-none" placeholder="Ej: Cliente pidió revisar tren delantero en la próxima visita"></textarea>
+      <button onclick="guardarNotaQR()" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20 mt-2 w-full"><i class="fa-solid fa-floppy-disk"></i> Guardar nota</button>
+      <span id="qrNotaOk" class="hidden text-xs text-success"><i class="fa-solid fa-check"></i> Nota guardada</span>
+    </div>
+    <div class="flex gap-2 justify-center mt-4"><button onclick="imprimirQR()" class="btn-premium bg-success/10 text-success border border-success/20"><i class="fa-solid fa-print"></i> Imprimir</button>
+      <button onclick="cerrarQR()" class="btn-premium border border-border hover:bg-background">Cerrar</button></div>
+  </div>
+</div>
+
+<script>
+// ===== navegación =====
+function irA(vista) {
+  document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-'+vista).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.target===vista));
+  if (vista==='stock') cargarRepuestos();
+  if (vista==='metricas') inicializarMetricas();
+  if (vista==='diagnostico') verificarIA();
+}
+// Vehículos, Presupuestos y Órdenes se gestionan DENTRO de cada cliente.
+// Estos ítems del menú llevan a Clientes y avisan dónde encontrarlos.
+function irADentroCliente(que) {
+  irA('clientes');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const aviso = document.getElementById('avisoDentroCliente');
+  aviso.querySelector('span').textContent =
+    `Los ${que} se gestionan dentro de cada cliente: elegí un cliente y abrí su vehículo.`;
+  aviso.classList.remove('hidden');
+  clearTimeout(window._avisoTimer);
+  window._avisoTimer = setTimeout(() => aviso.classList.add('hidden'), 5000);
+}
+
+// ===== helpers =====
+const API = "";
+let token = localStorage.getItem("taller_token") || null;
+async function api(ruta, opciones={}) {
+  const headers = { "Content-Type":"application/json", ...(opciones.headers||{}) };
+  const r = await fetch(API+ruta, { ...opciones, headers });
+  if (!r.ok && r.status!==204) throw new Error(await r.text()||r.statusText);
+  return r.status===204 ? null : r.json();
+}
+const val = id => document.getElementById(id).value.trim();
+const set = (id,v) => document.getElementById(id).value = v ?? "";
+const plata = n => "$"+Number(n).toLocaleString("es-AR",{minimumFractionDigits:0});
+
+// ===== LOGIN =====
+function abrirLogin(){ document.getElementById("loginModal").classList.remove("hidden"); document.getElementById("loginModal").classList.add("flex"); }
+function cerrarLogin(){ document.getElementById("loginModal").classList.add("hidden"); document.getElementById("loginModal").classList.remove("flex"); }
+async function hacerLogin(){
+  const err = document.getElementById("loginError");
+  try {
+    const r = await api("/api/auth/login",{method:"POST",body:JSON.stringify({usuario:val("loginUser"),password:val("loginPass")})});
+    token = r.token; localStorage.setItem("taller_token", token);
+    localStorage.setItem("taller_usuario", r.usuario);
+    cerrarLogin(); pintarSesion();
+  } catch(e){ err.textContent = "Usuario o contraseña incorrectos"; err.classList.remove("hidden"); }
+}
+function cerrarSesion(){
+  if(token) api("/api/auth/logout",{method:"POST",body:JSON.stringify({token})}).catch(()=>{});
+  token=null; localStorage.removeItem("taller_token"); localStorage.removeItem("taller_usuario"); pintarSesion();
+}
+function pintarSesion(){
+  const logueado = !!token;
+  document.getElementById("btnLogin").classList.toggle("hidden", logueado);
+  document.getElementById("btnLogout").classList.toggle("hidden", !logueado);
+  document.getElementById("usuarioLogueado").classList.toggle("hidden", !logueado);
+  if(logueado) document.getElementById("nombreUsuario").textContent = localStorage.getItem("taller_usuario")||"admin";
+}
+
+// ===== CLIENTES =====
+let clienteActivo=null, editandoCliente=false, autoAbierto=null, pestaniaActiva={};
+async function cargarClientes(){
+  const q = val("busqueda");
+  const clientes = await api("/api/clientes"+(q?`?q=${encodeURIComponent(q)}`:""));
+  const ul = document.getElementById("listaClientes"); ul.innerHTML="";
+  if(!clientes.length){ ul.innerHTML='<li class="text-center text-textMuted text-sm py-8">Sin clientes.</li>'; return; }
+  for(const c of clientes){
+    const li=document.createElement("li");
+    li.className="p-3 border border-border rounded-lg cursor-pointer hover:border-primary transition-all "+(c.id===clienteActivo?"border-primary bg-primary/5":"");
+    li.innerHTML=`<div class="font-semibold">${c.nombre}</div><div class="text-textMuted text-xs">${c.telefono||"sin teléfono"}</div>`;
+    li.onclick=()=>verCliente(c.id); ul.appendChild(li);
+  }
+}
+function nuevoCliente(){
+  editandoCliente=false; clienteActivo=null;
+  document.getElementById("tituloCliente").innerHTML='<i class="fa-solid fa-user-plus text-primary"></i> Nuevo cliente';
+  ["c_nombre","c_telefono","c_email","c_direccion","c_notas"].forEach(id=>set(id,""));
+  mostrarPanel("formCliente");
+}
+function mostrarPanel(cual){
+  ["vacioDetalle","formCliente","detalleCliente"].forEach(id=>document.getElementById(id).classList.add("hidden"));
+  document.getElementById(cual).classList.remove("hidden");
+}
+async function editarCliente(){
+  const c=await api(`/api/clientes/${clienteActivo}`); editandoCliente=true;
+  document.getElementById("tituloCliente").innerHTML='<i class="fa-solid fa-user-pen text-primary"></i> Editar cliente';
+  set("c_nombre",c.nombre); set("c_telefono",c.telefono); set("c_email",c.email); set("c_direccion",c.direccion); set("c_notas",c.notas);
+  mostrarPanel("formCliente");
+}
+async function guardarCliente(){
+  const nombre=val("c_nombre"); if(!nombre){alert("El nombre es obligatorio");return;}
+  const cuerpo={nombre,telefono:val("c_telefono")||null,email:val("c_email")||null,direccion:val("c_direccion")||null,notas:val("c_notas")||null};
+  const c = editandoCliente
+    ? await api(`/api/clientes/${clienteActivo}`,{method:"PUT",body:JSON.stringify(cuerpo)})
+    : await api("/api/clientes",{method:"POST",body:JSON.stringify(cuerpo)});
+  await cargarClientes(); verCliente(c.id);
+}
+function cancelarForm(){ clienteActivo?verCliente(clienteActivo):mostrarPanel("vacioDetalle"); }
+async function verCliente(id){
+  clienteActivo=id; const c=await api(`/api/clientes/${id}`);
+  const cont=document.getElementById("detalleCliente");
+  const contacto=[]; if(c.telefono)contacto.push('<i class="fa-brands fa-whatsapp text-success"></i> '+c.telefono);
+  if(c.email)contacto.push('<i class="fa-regular fa-envelope"></i> '+c.email);
+  let html=`<div class="flex items-center justify-between mb-1"><h2 class="text-xl font-bold">${c.nombre}</h2>
+    <div class="flex gap-2"><button onclick="editarCliente()" class="btn-premium text-sm border border-border hover:bg-background">Editar</button>
+    <button onclick="borrarCliente()" class="btn-premium text-sm bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white">Borrar</button></div></div>
+    <div class="text-textMuted text-sm mb-4">${contacto.join(" &nbsp; ")}</div>
+    <div class="flex items-center justify-between mb-3 pt-4 border-t border-border">
+      <h3 class="font-semibold">Vehículos <span class="text-textMuted">(${c.autos.length})</span></h3>
+      <button onclick="nuevoAuto()" class="btn-premium text-sm bg-success/10 text-success border border-success/20 hover:bg-success hover:text-white"><i class="fa-solid fa-plus"></i> Agregar auto</button></div>
+    <div id="formAuto" class="hidden"></div><div id="listaAutos" class="space-y-2"></div>`;
+  cont.innerHTML=html; mostrarPanel("detalleCliente");
+  pintarAutos(c.autos); cargarClientes();
+}
+async function borrarCliente(){
+  if(!confirm("¿Borrar este cliente y todos sus autos?"))return;
+  await api(`/api/clientes/${clienteActivo}`,{method:"DELETE"});
+  clienteActivo=null; mostrarPanel("vacioDetalle"); cargarClientes();
+}
+
+// ===== AUTOS =====
+function pintarAutos(autos){
+  const cont=document.getElementById("listaAutos"); cont.innerHTML="";
+  if(!autos.length){cont.innerHTML='<p class="text-textMuted text-sm">Sin vehículos.</p>';return;}
+  for(const a of autos){
+    const titulo=[a.marca,a.modelo,a.anio].filter(Boolean).join(" ")||"Vehículo";
+    const extra=[]; if(a.patente)extra.push("Patente: "+a.patente); if(a.kilometraje)extra.push(a.kilometraje.toLocaleString("es-AR")+" km"); if(a.color)extra.push(a.color);
+    const div=document.createElement("div"); div.className="doc";
+    div.innerHTML=`<div class="flex items-center justify-between cursor-pointer" onclick="alternarAuto(${a.id})">
+        <div><div class="font-medium"><i class="fa-solid fa-car text-primary"></i> ${titulo} ${autoAbierto===a.id?'<i class="fa-solid fa-chevron-up text-xs"></i>':'<i class="fa-solid fa-chevron-down text-xs"></i>'}</div>
+          <div class="text-textMuted text-xs mt-0.5">${extra.join(" · ")||"sin datos"}</div></div>
+        <div class="flex gap-1" onclick="event.stopPropagation()">
+          <button onclick="verQR(${a.id})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-1"><i class="fa-solid fa-qrcode"></i></button>
+          <button onclick='editarAuto(${JSON.stringify(a)})' class="btn-premium text-xs border border-border px-2 py-1">Editar</button>
+          <button onclick="borrarAuto(${a.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1">Borrar</button></div></div>
+      <div id="panel-${a.id}" class="${autoAbierto===a.id?'':'hidden'} mt-3 pt-3 border-t border-border"></div>`;
+    cont.appendChild(div);
+    if(autoAbierto===a.id) renderPanelAuto(a.id);
+  }
+}
+function nuevoAuto(){ formAutoHTML(null); }
+function editarAuto(a){ formAutoHTML(a); }
+function formAutoHTML(a){
+  const f=document.getElementById("formAuto");
+  f.innerHTML=`<div class="doc grid grid-cols-2 gap-3">
+    <input id="a_marca" class="input-premium" placeholder="Marca" value="${a?.marca||''}">
+    <input id="a_modelo" class="input-premium" placeholder="Modelo" value="${a?.modelo||''}">
+    <input id="a_anio" class="input-premium" placeholder="Año" value="${a?.anio||''}">
+    <input id="a_patente" class="input-premium" placeholder="Patente" value="${a?.patente||''}">
+    <input id="a_km" class="input-premium" placeholder="Km" value="${a?.kilometraje||''}">
+    <input id="a_color" class="input-premium" placeholder="Color" value="${a?.color||''}">
+    <div class="col-span-2 flex justify-end gap-2">
+      <button onclick="document.getElementById('formAuto').classList.add('hidden')" class="btn-premium text-sm border border-border">Cancelar</button>
+      <button onclick="guardarAuto(${a?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
+  f.classList.remove("hidden");
+}
+async function guardarAuto(id){
+  const cuerpo={marca:val("a_marca")||null,modelo:val("a_modelo")||null,anio:val("a_anio")?parseInt(val("a_anio")):null,
+    patente:val("a_patente")||null,kilometraje:val("a_km")?parseInt(val("a_km")):null,color:val("a_color")||null};
+  if(id) await api(`/api/autos/${id}`,{method:"PUT",body:JSON.stringify(cuerpo)});
+  else await api(`/api/clientes/${clienteActivo}/autos`,{method:"POST",body:JSON.stringify(cuerpo)});
+  verCliente(clienteActivo);
+}
+async function borrarAuto(id){ if(!confirm("¿Borrar este vehículo?"))return; await api(`/api/autos/${id}`,{method:"DELETE"}); verCliente(clienteActivo); }
+
+// ===== PANEL AUTO: presupuestos y órdenes =====
+function alternarAuto(id){ autoAbierto=(autoAbierto===id)?null:id; if(autoAbierto&&!pestaniaActiva[id])pestaniaActiva[id]="presupuestos"; verCliente(clienteActivo); }
+async function renderPanelAuto(autoId){
+  const p=document.getElementById("panel-"+autoId); const activa=pestaniaActiva[autoId]||"presupuestos";
+  p.innerHTML=`<div class="flex gap-2 mb-3">
+    <button onclick="cambiarPestania(${autoId},'presupuestos')" class="btn-premium text-xs ${activa==='presupuestos'?'bg-primary/10 text-primary border border-primary/20':'border border-border text-textMuted'}">Presupuestos</button>
+    <button onclick="cambiarPestania(${autoId},'ordenes')" class="btn-premium text-xs ${activa==='ordenes'?'bg-primary/10 text-primary border border-primary/20':'border border-border text-textMuted'}">Órdenes</button></div>
+    <div id="cont-${autoId}"></div>`;
+  activa==='presupuestos'?renderPresupuestos(autoId):renderOrdenes(autoId);
+}
+function cambiarPestania(a,p){ pestaniaActiva[a]=p; renderPanelAuto(a); }
+
+async function renderPresupuestos(autoId){
+  const cont=document.getElementById("cont-"+autoId); const lista=await api(`/api/autos/${autoId}/presupuestos`);
+  let html=`<button onclick="formPresupuesto(${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20 mb-2"><i class="fa-solid fa-plus"></i> Nuevo presupuesto</button><div id="fp-${autoId}"></div>`;
+  if(!lista.length)html+='<p class="text-textMuted text-sm">Sin presupuestos.</p>';
+  for(const p of lista){
+    html+=`<div class="doc"><div class="flex justify-between items-center"><b>${p.descripcion||"Presupuesto"} <span class="text-textMuted text-xs">#${p.id}</span></b><span class="text-success font-bold">${plata(p.total)}</span></div>
+      <table class="w-full text-xs mt-2">${p.items.map(it=>`<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">${it.cantidad}×${plata(it.precio_unitario)}</td><td class="text-right">${plata(it.subtotal)}</td></tr>`).join("")}</table>
+      <div class="flex gap-1 mt-2 flex-wrap">
+        <button onclick="enviarWhatsApp('presupuesto',${p.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
+        <button onclick="ordenDesdePresu(${p.id},${autoId})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">→ Orden</button>
+        <button onclick="borrarPresu(${p.id},${autoId})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20">Borrar</button></div></div>`;
+  }
+  cont.innerHTML=html;
+}
+let itemsTmp=[];
+function formPresupuesto(autoId){
+  itemsTmp=[{descripcion:"",cantidad:1,precio_unitario:0,es_repuesto:true}];
+  document.getElementById("fp-"+autoId).innerHTML=`<div class="doc"><input id="np_desc" class="input-premium w-full mb-2" placeholder="Descripción (ej: Service)">
+    <div id="np_items"></div><button onclick="itemsTmp.push({descripcion:'',cantidad:1,precio_unitario:0,es_repuesto:true});pintaItems('np_items',itemsTmp)" class="btn-premium text-xs border border-border mt-1">+ Ítem</button>
+    <div class="flex justify-end mt-2"><button onclick="guardarPresu(${autoId})" class="btn-premium text-xs bg-success text-white">Guardar</button></div></div>`;
+  pintaItems("np_items",itemsTmp);
+}
+function pintaItems(cont,arr){
+  document.getElementById(cont).innerHTML=arr.map((it,i)=>`<div class="flex gap-1 mb-1">
+    <input class="input-premium flex-1 text-xs" placeholder="Descripción" value="${it.descripcion}" oninput="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}[${i}].descripcion=this.value">
+    <input class="input-premium w-16 text-xs" type="number" value="${it.cantidad}" oninput="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}[${i}].cantidad=this.value">
+    <input class="input-premium w-24 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}[${i}].precio_unitario=this.value">
+    <button onclick="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}.splice(${i},1);pintaItems('${cont}',${cont==='np_items'?'itemsTmp':'itemsOrdTmp'})" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button></div>`).join("");
+}
+async function guardarPresu(autoId){
+  const items=itemsTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0}));
+  await api("/api/presupuestos",{method:"POST",body:JSON.stringify({auto_id:autoId,descripcion:val("np_desc")||null,items})});
+  renderPresupuestos(autoId);
+}
+async function borrarPresu(id,autoId){ if(!confirm("¿Borrar este presupuesto?"))return; await api(`/api/presupuestos/${id}`,{method:"DELETE"}); renderPresupuestos(autoId); }
+async function ordenDesdePresu(id,autoId){ if(!confirm("¿Convertir en orden de trabajo?\n(La orden queda grabada de forma permanente)"))return;
+  await api("/api/ordenes/desde-presupuesto",{method:"POST",body:JSON.stringify({presupuesto_id:id})}); cambiarPestania(autoId,"ordenes"); }
+
+let itemsOrdTmp=[], repuestosCache=[];
+async function renderOrdenes(autoId){
+  if(!repuestosCache.length){try{repuestosCache=await api("/api/repuestos");}catch(e){}}
+  const cont=document.getElementById("cont-"+autoId); const lista=await api(`/api/autos/${autoId}/ordenes`);
+  let html=`<button onclick="formOrden(${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20 mb-2"><i class="fa-solid fa-plus"></i> Nueva orden</button><div id="fo-${autoId}"></div>`;
+  if(!lista.length)html+='<p class="text-textMuted text-sm">Sin órdenes.</p>';
+  for(const o of lista){
+    html+=`<div class="doc"><div class="flex justify-between items-center"><b>${o.descripcion||"Orden"} <span class="text-textMuted text-xs">#${o.id}</span> <span class="badge-estado est-${o.estado}">${o.estado}</span></b><span class="text-success font-bold">${plata(o.total)}</span></div>
+      <table class="w-full text-xs mt-2">${o.items.map(it=>`<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">${it.cantidad}×${plata(it.precio_unitario)}</td><td class="text-right">${plata(it.subtotal)}</td></tr>`).join("")}</table>
+      <div class="flex gap-1 mt-2 flex-wrap">
+        <button onclick="enviarWhatsApp('orden',${o.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
+        ${o.estado==="pendiente"?`<button onclick="estadoOrden(${o.id},'finalizada',${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20">Finalizar</button>`:""}
+        ${o.estado==="finalizada"?`<button onclick="estadoOrden(${o.id},'cobrada',${autoId})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">Cobrar</button>`:""}
+        ${o.estado==="cobrada"?'<span class="text-textMuted text-xs py-1">Cerrada ✓</span>':""}</div></div>`;
+  }
+  cont.innerHTML=html;
+}
+function formOrden(autoId){
+  itemsOrdTmp=[{descripcion:"",cantidad:1,precio_unitario:0,es_repuesto:true,repuesto_id:null}];
+  document.getElementById("fo-"+autoId).innerHTML=`<div class="doc"><input id="no_desc" class="input-premium w-full mb-2" placeholder="Descripción (ej: Cambio de correa)">
+    <div id="no_items"></div><button onclick="itemsOrdTmp.push({descripcion:'',cantidad:1,precio_unitario:0,es_repuesto:true,repuesto_id:null});pintaItemsOrd()" class="btn-premium text-xs border border-border mt-1">+ Ítem</button>
+    <p class="text-textMuted text-xs mt-2">Tip: elegí un repuesto del stock para que se descuente al finalizar.</p>
+    <div class="flex justify-end mt-2"><button onclick="guardarOrden(${autoId})" class="btn-premium text-xs bg-success text-white">Crear orden</button></div></div>`;
+  pintaItemsOrd();
+}
+function pintaItemsOrd(){
+  const opts=`<option value="">— repuesto —</option>`+repuestosCache.map(r=>`<option value="${r.id}">${r.nombre} (${r.cantidad})</option>`).join("");
+  document.getElementById("no_items").innerHTML=itemsOrdTmp.map((it,i)=>`<div class="flex gap-1 mb-1">
+    <select class="input-premium w-32 text-xs" onchange="elegirRep(${i},this.value)">${opts.replace(`value="${it.repuesto_id}"`,`value="${it.repuesto_id}" selected`)}</select>
+    <input class="input-premium flex-1 text-xs" placeholder="Descripción" value="${it.descripcion}" oninput="itemsOrdTmp[${i}].descripcion=this.value">
+    <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsOrdTmp[${i}].cantidad=this.value">
+    <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsOrdTmp[${i}].precio_unitario=this.value">
+    <button onclick="itemsOrdTmp.splice(${i},1);pintaItemsOrd()" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button></div>`).join("");
+}
+function elegirRep(i,repId){
+  if(!repId){itemsOrdTmp[i].repuesto_id=null;return;}
+  const rep=repuestosCache.find(r=>r.id==repId);
+  if(rep){itemsOrdTmp[i].repuesto_id=rep.id; itemsOrdTmp[i].descripcion=rep.nombre; itemsOrdTmp[i].precio_unitario=rep.precio; itemsOrdTmp[i].es_repuesto=true; pintaItemsOrd();}
+}
+async function guardarOrden(autoId){
+  const items=itemsOrdTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0,repuesto_id:it.repuesto_id||null}));
+  await api("/api/ordenes",{method:"POST",body:JSON.stringify({auto_id:autoId,descripcion:val("no_desc")||null,items})});
+  renderOrdenes(autoId);
+}
+async function estadoOrden(id,estado,autoId){
+  const msg=estado==="finalizada"?"¿Marcar como FINALIZADA?\n(Se descuenta el stock de los repuestos)":"¿Marcar como COBRADA?\n(Queda cerrada)";
+  if(!confirm(msg))return; await api(`/api/ordenes/${id}/estado`,{method:"PATCH",body:JSON.stringify({estado})}); renderOrdenes(autoId); actualizarAlertaStock();
+}
+
+// ===== WHATSAPP =====
+async function enviarWhatsApp(tipo,id){
+  try{ const r=await api(`/api/whatsapp/${tipo}/${id}`);
+    if(!r.tiene_telefono)alert("El cliente no tiene teléfono cargado. Se abrirá WhatsApp para elegir contacto.");
+    window.open(r.link,"_blank");
+  }catch(e){alert("No se pudo generar el mensaje.");}
+}
+
+// ===== QR =====
+let autoQRactivo = null;
+async function verQR(autoId){
+  autoQRactivo = autoId;
+  const r=await api(`/api/autos/${autoId}/qr`);
+  document.getElementById("qrImg").src="data:image/png;base64,"+r.qr_base64;
+  // cargar la nota existente del auto
+  const auto = await api(`/api/autos/${autoId}`);
+  document.getElementById("qrNota").value = auto.nota_qr || "";
+  document.getElementById("qrNotaOk").classList.add("hidden");
+  const m=document.getElementById("modalQR"); m.classList.remove("hidden"); m.classList.add("flex");
+}
+async function guardarNotaQR(){
+  if(!autoQRactivo) return;
+  await api(`/api/autos/${autoQRactivo}`, {method:"PUT", body:JSON.stringify({nota_qr: document.getElementById("qrNota").value || null})});
+  const ok = document.getElementById("qrNotaOk"); ok.classList.remove("hidden");
+  setTimeout(()=>ok.classList.add("hidden"), 2500);
+}
+function cerrarQR(){ const m=document.getElementById("modalQR"); m.classList.add("hidden"); m.classList.remove("flex"); }
+function imprimirQR(){ const img=document.getElementById("qrImg").src; const w=window.open(""); w.document.write(`<img src="${img}" style="width:300px" onload="window.print();window.close()">`); }
+
+// ===== STOCK =====
+async function cargarRepuestos(){
+  const q=val("busquedaRep"); const lista=await api("/api/repuestos"+(q?`?q=${encodeURIComponent(q)}`:"")); repuestosCache=lista;
+  const cont=document.getElementById("listaRepuestos");
+  if(!lista.length){cont.innerHTML='<p class="text-center text-textMuted py-8">Sin repuestos. Cargá el primero.</p>';return;}
+  cont.innerHTML=`<table class="w-full text-sm"><thead><tr class="text-textMuted text-xs border-b border-border">
+    <th class="text-left py-2">Repuesto</th><th class="text-left">Código</th><th class="text-right">Stock</th><th class="text-right">Precio</th><th></th></tr></thead><tbody>
+    ${lista.map(r=>`<tr class="border-b border-border/50 ${r.stock_bajo?'bg-red-500/5':''}">
+      <td class="py-2">${r.nombre} ${r.stock_bajo?'<span class="badge-estado bg-red-500/20 text-red-400 ml-1">bajo</span>':''}</td>
+      <td class="text-textMuted">${r.codigo||'—'}</td>
+      <td class="text-right"><button onclick="ajustar(${r.id},-1)" class="text-textMuted hover:text-red-400 px-1">−</button><b class="${r.stock_bajo?'text-red-400':''}">${r.cantidad}</b><button onclick="ajustar(${r.id},1)" class="text-textMuted hover:text-success px-1">+</button> <span class="text-textMuted text-xs">/ mín ${r.minimo}</span></td>
+      <td class="text-right">${plata(r.precio)}</td>
+      <td class="text-right"><button onclick='editarRep(${JSON.stringify(r)})' class="text-textMuted hover:text-primary px-1"><i class="fa-solid fa-pen text-xs"></i></button>
+        <button onclick="borrarRep(${r.id})" class="text-textMuted hover:text-red-400 px-1"><i class="fa-solid fa-trash text-xs"></i></button></td></tr>`).join("")}
+    </tbody></table>`;
+}
+function formRepuesto(){ formRepHTML(null); }
+function editarRep(r){ formRepHTML(r); }
+function formRepHTML(r){
+  document.getElementById("formRepuestoCont").innerHTML=`<div class="doc grid grid-cols-2 gap-3 mt-3">
+    <input id="r_nombre" class="input-premium col-span-2" placeholder="Nombre" value="${r?.nombre||''}">
+    <input id="r_codigo" class="input-premium" placeholder="Código/SKU" value="${r?.codigo||''}">
+    <input id="r_precio" class="input-premium" type="number" placeholder="Precio" value="${r?.precio||''}">
+    <input id="r_cantidad" class="input-premium" type="number" placeholder="Cantidad" value="${r?.cantidad??''}">
+    <input id="r_minimo" class="input-premium" type="number" placeholder="Mínimo (alerta)" value="${r?.minimo??1}">
+    <div class="col-span-2 flex justify-end gap-2"><button onclick="document.getElementById('formRepuestoCont').innerHTML=''" class="btn-premium text-sm border border-border">Cancelar</button>
+      <button onclick="guardarRep(${r?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
+}
+async function guardarRep(id){
+  const cuerpo={nombre:val("r_nombre"),codigo:val("r_codigo")||null,precio:parseFloat(val("r_precio"))||0,
+    cantidad:parseInt(val("r_cantidad"))||0,minimo:parseInt(val("r_minimo"))||1};
+  if(!cuerpo.nombre){alert("El nombre es obligatorio");return;}
+  if(id)await api(`/api/repuestos/${id}`,{method:"PUT",body:JSON.stringify(cuerpo)});
+  else await api("/api/repuestos",{method:"POST",body:JSON.stringify(cuerpo)});
+  document.getElementById("formRepuestoCont").innerHTML=""; cargarRepuestos(); actualizarAlertaStock();
+}
+async function ajustar(id,delta){ try{await api(`/api/repuestos/${id}/ajustar`,{method:"PATCH",body:JSON.stringify({delta})});}catch(e){alert("Sin stock suficiente");} cargarRepuestos(); actualizarAlertaStock(); }
+async function borrarRep(id){ if(!confirm("¿Borrar este repuesto?"))return; await api(`/api/repuestos/${id}`,{method:"DELETE"}); cargarRepuestos(); actualizarAlertaStock(); }
+async function actualizarAlertaStock(){
+  try{ const bajos=await api("/api/repuestos?solo_bajos=true"); const b=document.getElementById("alertaStock");
+    if(bajos.length){b.textContent=bajos.length; b.classList.remove("hidden");}else b.classList.add("hidden");
+  }catch(e){}
+}
+
+// ===== MÉTRICAS =====
+function inicializarMetricas(){
+  const meses=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const ahora=new Date(); const sm=document.getElementById("metMes"), sa=document.getElementById("metAnio");
+  if(!sm.options.length){ meses.forEach((m,i)=>sm.add(new Option(m,i+1)));
+    for(let a=ahora.getFullYear();a>=ahora.getFullYear()-3;a--)sa.add(new Option(a,a));
+    sm.value=ahora.getMonth()+1; sa.value=ahora.getFullYear(); }
+  cargarMetricas();
+}
+async function cargarMetricas(){
+  const m=await api(`/api/metricas/mes?anio=${val("metAnio")}&mes=${val("metMes")}`);
+  const bajos=m.repuestos_stock_bajo.map(r=>`<li>${r.nombre}: ${r.cantidad} (mín ${r.minimo})</li>`).join("");
+  const tarjeta=(v,l,c)=>`<div class="bg-surface border border-border rounded-xl p-5 text-center"><div class="text-3xl font-bold ${c}">${v}</div><div class="text-textMuted text-xs uppercase mt-1">${l}</div></div>`;
+  document.getElementById("contenidoMetricas").innerHTML=`
+    <div class="bg-surface border border-border rounded-xl p-5 mb-4 text-textMain leading-relaxed">${m.resumen}</div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      ${tarjeta(m.autos_ingresados,"Autos ingresados","text-primary")}
+      ${tarjeta(m.ordenes_finalizadas,"Órdenes finalizadas","text-success")}
+      ${tarjeta(m.ordenes_cobradas,"Órdenes cobradas","text-blue-400")}
+      ${tarjeta(plata(m.total_facturado),"Facturado","text-success")}</div>
+    ${bajos?`<div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mt-4"><b class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Repuestos con stock bajo</b><ul class="mt-2 text-sm list-disc list-inside text-textMuted">${bajos}</ul></div>`:''}`;
+}
+
+// ===== IA =====
+async function verificarIA(){
+  const est=document.getElementById("iaEstado");
+  try{ const r=await api("/api/ia/estado");
+    if(r.configurada){ est.innerHTML='<i class="fa-solid fa-circle-check text-success"></i><span class="text-success">IA conectada y lista.</span>'; }
+    else{ est.innerHTML='<i class="fa-solid fa-circle-exclamation text-amber-400"></i><span class="text-amber-200">Falta la API key de Gemini. Ponela en el archivo .env (es gratis: aistudio.google.com/apikey)</span>'; }
+  }catch(e){ est.innerHTML='<span class="text-red-400">No se pudo verificar la IA.</span>'; }
+}
+async function analizarIA(){
+  const sintomas=val("iaSintomas"); if(!sintomas){alert("Describí los síntomas primero");return;}
+  const btn=document.getElementById("btnIA"); const res=document.getElementById("iaResultado");
+  btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Analizando...';
+  res.innerHTML='';
+  try{
+    const r=await api("/api/ia/diagnostico",{method:"POST",body:JSON.stringify({sintomas})});
+    if(r.error){ res.innerHTML=`<div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 text-amber-200 text-sm">${r.error}${r.ayuda?'<br><br>'+r.ayuda:''}</div>`; }
+    else{ res.innerHTML=`<div class="bg-background border border-purple-500/20 rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed">${r.diagnostico}</div>`; }
+  }catch(e){ res.innerHTML='<div class="text-red-400 text-sm">Error al consultar la IA.</div>'; }
+  btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-wand-magic-sparkles"></i> Analizar síntomas';
+}
+
+// ===== arranque =====
+pintarSesion();
+cargarClientes();
+actualizarAlertaStock();
+</script>
+</body>
+</html>
