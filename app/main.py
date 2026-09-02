@@ -85,3 +85,6 @@ async def raiz():
 
 
 app.mount("/static", StaticFiles(directory=DIR_STATIC), name="static")
+@app.api_route("/ping", methods=["GET", "HEAD"])
+def ping():
+    return {"status": "ok"}
