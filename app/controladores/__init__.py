@@ -1,3 +1,4 @@
+from . import auth_controlador
 from . import auto_controlador
 from . import cliente_controlador
 from . import historial_controlador
