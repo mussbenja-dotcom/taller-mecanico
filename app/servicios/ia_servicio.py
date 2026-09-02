@@ -15,7 +15,7 @@ import httpx
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # modelo gratuito y rápido de Gemini
-MODELO = "gemini-1.5-flash"
+MODELO = "deep-research-preview-04-2026"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODELO}:generateContent"
 
 INSTRUCCION = (
