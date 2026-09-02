@@ -14,10 +14,11 @@ class LoginDatos(BaseModel):
 
 @router.post("/login")
 async def login(datos: LoginDatos):
-    if not auth.verificar_credenciales(datos.usuario, datos.password):
+    rol = auth.verificar_credenciales(datos.usuario, datos.password)
+    if not rol:
         raise HTTPException(401, "Usuario o contraseña incorrectos")
-    token = auth.crear_token()
-    return {"token": token, "usuario": datos.usuario}
+    token = auth.crear_token(rol)
+    return {"token": token, "usuario": datos.usuario, "rol": rol}
 
 
 class LogoutDatos(BaseModel):
