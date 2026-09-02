@@ -1,10 +1,1 @@
-from . import auth_controlador
-from . import auto_controlador
-from . import cliente_controlador
-from . import historial_controlador
-from . import ia_controlador
-from . import metricas_controlador
-from . import orden_controlador
-from . import presupuesto_controlador
-from . import repuesto_controlador
-from . import whatsapp_controlador
+
