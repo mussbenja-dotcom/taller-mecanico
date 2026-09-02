@@ -65,3 +65,32 @@ class ServicioCliente:
     async def borrar(sesion: AsyncSession, cliente: Cliente) -> None:
         await sesion.delete(cliente)  # borra en cascada sus autos
         await sesion.commit()
+
+    @staticmethod
+    async def limpiar_duplicados(sesion: AsyncSession) -> dict:
+        """
+        Borra clientes duplicados (mismo nombre + teléfono), dejando el más
+        antiguo (menor id) de cada grupo. Solo borra los que NO tienen autos,
+        para no perder historial por las dudas.
+        """
+        res = await sesion.execute(select(Cliente).order_by(Cliente.id))
+        todos = list(res.scalars().all())
+
+        vistos = {}   # (nombre, telefono) -> id que se queda
+        borrados = 0
+        for c in todos:
+            clave = ((c.nombre or "").strip().lower(), (c.telefono or "").strip())
+            if clave in vistos:
+                # es duplicado; verificar que no tenga autos antes de borrar
+                autos = await sesion.execute(
+                    select(Cliente).where(Cliente.id == c.id).options(selectinload(Cliente.autos))
+                )
+                cli = autos.scalar_one()
+                if not cli.autos:
+                    await sesion.delete(cli)
+                    borrados += 1
+            else:
+                vistos[clave] = c.id
+
+        await sesion.commit()
+        return {"borrados": borrados, "quedan": len(vistos)}

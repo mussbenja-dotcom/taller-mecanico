@@ -17,6 +17,12 @@ from app.esquemas.cliente import (
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
 
 
+@router.post("/limpiar-duplicados")
+async def limpiar_duplicados(sesion: AsyncSession = Depends(obtener_sesion)):
+    """Borra clientes duplicados (mismo nombre+teléfono) que no tengan autos."""
+    return await ServicioCliente.limpiar_duplicados(sesion)
+
+
 @router.get("", response_model=list[ClienteRespuesta])
 async def listar(q: str | None = None, sesion: AsyncSession = Depends(obtener_sesion)):
     return await ServicioCliente.listar(sesion, q)

@@ -93,6 +93,7 @@ body { font-family:'Inter',sans-serif; background:#0f172a; color:#f8fafc; }
           <div class="relative"><i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
             <input id="busqueda" type="text" placeholder="Buscar cliente..." class="input-premium w-full !pl-10" onkeyup="if(event.key==='Enter')cargarClientes()"></div>
           <button onclick="nuevoCliente()" class="w-full btn-premium bg-success/10 text-success border border-success/20 hover:bg-success hover:text-white"><i class="fa-solid fa-plus"></i> Nuevo cliente</button>
+          <button onclick="limpiarDuplicados()" class="w-full btn-premium text-xs text-textMuted hover:text-red-400 mt-1" title="Borra clientes repetidos sin autos"><i class="fa-solid fa-broom"></i> Limpiar duplicados</button>
         </div>
         <ul id="listaClientes" class="flex-1 overflow-y-auto p-3 space-y-2"></ul>
       </div>
@@ -340,15 +341,28 @@ async function editarCliente(){
   set("c_nombre",c.nombre); set("c_telefono",c.telefono); set("c_email",c.email); set("c_direccion",c.direccion); set("c_notas",c.notas);
   mostrarPanel("formCliente");
 }
+let guardandoCliente = false;
 async function guardarCliente(){
+  if(guardandoCliente) return;              // evita doble clic / doble alta
   const nombre=val("c_nombre"); if(!nombre){alert("El nombre es obligatorio");return;}
+  guardandoCliente = true;
   const cuerpo={nombre,telefono:val("c_telefono")||null,email:val("c_email")||null,direccion:val("c_direccion")||null,notas:val("c_notas")||null};
-  const c = editandoCliente
-    ? await api(`/api/clientes/${clienteActivo}`,{method:"PUT",body:JSON.stringify(cuerpo)})
-    : await api("/api/clientes",{method:"POST",body:JSON.stringify(cuerpo)});
-  await cargarClientes(); verCliente(c.id);
+  try {
+    const c = editandoCliente
+      ? await api(`/api/clientes/${clienteActivo}`,{method:"PUT",body:JSON.stringify(cuerpo)})
+      : await api("/api/clientes",{method:"POST",body:JSON.stringify(cuerpo)});
+    await cargarClientes(); verCliente(c.id);
+  } finally {
+    guardandoCliente = false;
+  }
 }
 function cancelarForm(){ clienteActivo?verCliente(clienteActivo):mostrarPanel("vacioDetalle"); }
+async function limpiarDuplicados(){
+  if(!confirm("¿Borrar clientes repetidos (mismo nombre y teléfono) que NO tengan autos cargados?"))return;
+  const r=await api("/api/clientes/limpiar-duplicados",{method:"POST"});
+  alert(`Listo. Se borraron ${r.borrados} duplicado(s). Quedan ${r.quedan} cliente(s).`);
+  cargarClientes();
+}
 async function verCliente(id){
   clienteActivo=id; const c=await api(`/api/clientes/${id}`);
   const cont=document.getElementById("detalleCliente");

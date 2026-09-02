@@ -45,7 +45,29 @@ async def ciclo_vida(app: FastAPI):
     if config.CREAR_TABLAS_AL_INICIAR:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # migración automática: agrega columnas nuevas si faltan
+            # (así no hay que correr migrate.py a mano, ni en local ni en Render)
+            await conn.run_sync(_migrar_columnas_faltantes)
     yield
+
+
+def _migrar_columnas_faltantes(sync_conn):
+    """Agrega columnas nuevas a tablas existentes si no están. Seguro e idempotente."""
+    from sqlalchemy import inspect, text
+    insp = inspect(sync_conn)
+    tablas = insp.get_table_names()
+
+    # columnas que fueron agregadas después de la creación inicial
+    nuevas = {
+        "autos": [("nota_qr", "TEXT")],
+    }
+    for tabla, columnas in nuevas.items():
+        if tabla not in tablas:
+            continue
+        existentes = [c["name"] for c in insp.get_columns(tabla)]
+        for nombre, tipo in columnas:
+            if nombre not in existentes:
+                sync_conn.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {nombre} {tipo}"))
 
 
 app = FastAPI(title="Taller — API (MVC)", version="0.2.0", lifespan=ciclo_vida)
@@ -85,6 +107,3 @@ async def raiz():
 
 
 app.mount("/static", StaticFiles(directory=DIR_STATIC), name="static")
-@app.api_route("/ping", methods=["GET", "HEAD"])
-def ping():
-    return {"status": "ok"}
