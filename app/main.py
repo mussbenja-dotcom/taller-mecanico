@@ -65,9 +65,17 @@ def _migrar_columnas_faltantes(sync_conn):
         if tabla not in tablas:
             continue
         existentes = [c["name"] for c in insp.get_columns(tabla)]
+        dialecto = sync_conn.dialect.name  # 'sqlite' o 'postgresql'
         for nombre, tipo in columnas:
             if nombre not in existentes:
-                sync_conn.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {nombre} {tipo}"))
+                # PostgreSQL (Neon) soporta IF NOT EXISTS; SQLite no, pero ya
+                # chequeamos arriba que no exista, así que va directo.
+                if dialecto == "postgresql":
+                    sync_conn.execute(text(
+                        f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {nombre} {tipo}"))
+                else:
+                    sync_conn.execute(text(
+                        f"ALTER TABLE {tabla} ADD COLUMN {nombre} {tipo}"))
 
 
 app = FastAPI(title="Taller — API (MVC)", version="0.2.0", lifespan=ciclo_vida)

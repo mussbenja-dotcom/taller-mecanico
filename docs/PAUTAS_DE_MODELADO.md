@@ -262,3 +262,26 @@ nunca quedan desactualizados si cambia un ítem.
 - Como la columna es nueva sobre una tabla existente, hay un `migrate.py`
   aditivo: si ya tenías la base con datos, corré `python migrate.py` una vez.
   Es seguro (no borra nada; si la columna ya existe, no hace nada).
+
+---
+
+## 11. Vistas generales (Vehículos, Presupuestos, Órdenes)
+
+Antes estos ítems del menú solo avisaban "está dentro del cliente". Ahora son
+pantallas propias con vista general de todo el taller:
+
+- **Vehículos**: tabla con todos los autos, búsqueda por patente/marca/modelo/cliente.
+- **Presupuestos**: todos los presupuestos del taller con su auto y cliente.
+- **Órdenes**: todas las órdenes, con filtro por estado (pendiente/finalizada/cobrada).
+
+Cada fila tiene un botón "Abrir/Ver" que lleva al cliente correspondiente con el
+auto ya desplegado, para operar (crear orden, mandar WhatsApp, etc.). La gestión
+sigue viviendo dentro del cliente; estas vistas son de consulta rápida.
+
+Endpoints nuevos:
+- `GET /api/autos?q=` (todos los vehículos)
+- `GET /api/presupuestos` (todos)
+- `GET /api/ordenes?estado=` (todas, con filtro)
+
+Los servicios ganaron un método `listar_todos` que incluye datos del auto y
+cliente en la respuesta.
