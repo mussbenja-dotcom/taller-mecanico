@@ -93,7 +93,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
       <div class="lg:col-span-1 bg-surface border border-border rounded-xl flex flex-col overflow-hidden">
         <div class="p-4 border-b border-border space-y-3">
           <div class="relative"><i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
-            <input id="busqueda" type="text" autocomplete="off" name="busqueda_clientes_taller" placeholder="Buscar cliente..." class="input-premium w-full !pl-10" onkeyup="if(event.key==='Enter')cargarClientes()"></div>
+            <input id="busqueda" type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other" name="taller_search_field" placeholder="Buscar cliente..." class="input-premium w-full !pl-10" onkeyup="if(event.key==='Enter')cargarClientes()"></div>
           <button onclick="nuevoCliente()" class="w-full btn-premium bg-success/10 text-success border border-success/20 hover:bg-success hover:text-white"><i class="fa-solid fa-plus"></i> Nuevo cliente</button>
           <button onclick="limpiarDuplicados()" class="w-full btn-premium text-xs text-textMuted hover:text-red-400 mt-1" title="Borra clientes repetidos sin autos"><i class="fa-solid fa-broom"></i> Limpiar duplicados</button>
         </div>
@@ -769,6 +769,8 @@ function verificarAcceso(){
   }
 }
 verificarAcceso();
+// asegurar que el buscador arranque vacío (Chrome a veces lo autocompleta)
+setTimeout(()=>{ const b=document.getElementById("busqueda"); if(b) b.value=""; }, 100);
 </script>
 </body>
 </html>
