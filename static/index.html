@@ -25,6 +25,8 @@ tailwind.config = { theme: { extend: {
   .nav-item.active { @apply bg-primary/10 text-primary font-semibold; }
 }
 body { font-family:'Inter',sans-serif; background:#0f172a; color:#f8fafc; }
+/* cuando no hay sesión, ocultar el sidebar y el contenido: solo se ve el login */
+body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { display:none !important; }
 .view-section { display:none; }
 .view-section.active { display:block; animation:fadeIn .3s ease-out; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
@@ -197,7 +199,7 @@ body { font-family:'Inter',sans-serif; background:#0f172a; color:#f8fafc; }
 <!-- MODAL LOGIN -->
 <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
   <div class="bg-surface border border-border rounded-2xl p-8 max-w-sm w-full mx-4 relative">
-    <button onclick="cerrarLogin()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-background flex items-center justify-center text-textMuted hover:text-textMain"><i class="fa-solid fa-xmark"></i></button>
+    <button onclick="if(token)cerrarLogin()" id="btnCerrarLogin" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-background flex items-center justify-center text-textMuted hover:text-textMain hidden"><i class="fa-solid fa-xmark"></i></button>
     <div class="text-center mb-6">
       <div class="w-16 h-16 bg-gradient-to-br from-primary/20 to-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20"><i class="fa-solid fa-shield-halved text-2xl text-primary"></i></div>
       <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a TallerPro</p>
@@ -268,7 +270,12 @@ function cerrarMenu(){ document.getElementById("sidebar").classList.add("-transl
 
 // ===== LOGIN + ROLES =====
 let rolActual = localStorage.getItem("taller_rol") || null;
-function abrirLogin(){ document.getElementById("loginModal").classList.remove("hidden"); document.getElementById("loginModal").classList.add("flex"); }
+function abrirLogin(){
+  document.getElementById("loginModal").classList.remove("hidden");
+  document.getElementById("loginModal").classList.add("flex");
+  // la X para cerrar solo aparece si ya hay sesión (si no, es obligatorio entrar)
+  document.getElementById("btnCerrarLogin").classList.toggle("hidden", !token);
+}
 function cerrarLogin(){ document.getElementById("loginModal").classList.add("hidden"); document.getElementById("loginModal").classList.remove("flex"); }
 async function hacerLogin(){
   const err = document.getElementById("loginError");
@@ -278,7 +285,9 @@ async function hacerLogin(){
     localStorage.setItem("taller_token", token);
     localStorage.setItem("taller_usuario", r.usuario);
     localStorage.setItem("taller_rol", r.rol);
-    cerrarLogin(); pintarSesion(); aplicarRol();
+    cerrarLogin(); document.body.classList.remove("sin-sesion");
+    pintarSesion(); aplicarRol();
+    cargarClientes(); actualizarAlertaStock();
   } catch(e){ err.textContent = "Usuario o contraseña incorrectos"; err.classList.remove("hidden"); }
 }
 function cerrarSesion(){
@@ -286,6 +295,7 @@ function cerrarSesion(){
   token=null; rolActual=null;
   localStorage.removeItem("taller_token"); localStorage.removeItem("taller_usuario"); localStorage.removeItem("taller_rol");
   pintarSesion(); aplicarRol();
+  document.body.classList.add("sin-sesion"); abrirLogin();
 }
 function pintarSesion(){
   const logueado = !!token;
@@ -699,10 +709,20 @@ async function abrirEnClientePresu(autoId){
 }
 
 // ===== arranque =====
-pintarSesion();
-aplicarRol();
-cargarClientes();
-actualizarAlertaStock();
+// Si NO hay sesión, obligar a iniciar sesión (no se ve nada hasta entrar).
+function verificarAcceso(){
+  if(token){
+    // hay sesión: mostrar la app normalmente
+    document.body.classList.remove("sin-sesion");
+    pintarSesion(); aplicarRol();
+    cargarClientes(); actualizarAlertaStock();
+  } else {
+    // no hay sesión: ocultar todo y forzar login
+    document.body.classList.add("sin-sesion");
+    abrirLogin();
+  }
+}
+verificarAcceso();
 </script>
 </body>
 </html>
