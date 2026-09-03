@@ -196,6 +196,14 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
 </main>
 </div>
 
+<!-- OVERLAY DE CARGA (bloquea clics mientras se procesa una acción) -->
+<div id="bloqueoCarga" class="hidden fixed inset-0 z-[60] flex items-center justify-center" style="background:rgba(15,23,42,.35);cursor:wait">
+  <div class="bg-surface border border-border rounded-xl px-5 py-3 flex items-center gap-3 shadow-lg">
+    <i class="fa-solid fa-spinner fa-spin text-primary text-lg"></i>
+    <span class="text-sm text-textMuted">Procesando...</span>
+  </div>
+</div>
+
 <!-- MODAL LOGIN -->
 <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
   <div class="bg-surface border border-border rounded-2xl p-8 max-w-sm w-full mx-4 relative">
@@ -207,7 +215,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <div class="space-y-4">
       <div><label class="block text-sm text-textMuted mb-1.5">Usuario</label>
         <div class="relative"><i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
-          <input id="loginUser" type="text" autocomplete="username" value="admin" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important"></div></div>
+          <input id="loginUser" type="text" autocomplete="off" placeholder="Usuario" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important"></div></div>
       <div><label class="block text-sm text-textMuted mb-1.5">Contraseña</label>
         <div class="relative"><i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
           <input id="loginPass" type="password" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important" onkeyup="if(event.key==='Enter')hacerLogin()"></div></div>
@@ -256,11 +264,25 @@ function irA(vista) {
 // ===== helpers =====
 const API = "";
 let token = localStorage.getItem("taller_token") || null;
+let _peticionesActivas = 0;
+function mostrarBloqueo(){
+  _peticionesActivas++;
+  document.getElementById("bloqueoCarga").classList.remove("hidden");
+}
+function ocultarBloqueo(){
+  _peticionesActivas = Math.max(0, _peticionesActivas-1);
+  if(_peticionesActivas===0) document.getElementById("bloqueoCarga").classList.add("hidden");
+}
 async function api(ruta, opciones={}) {
   const headers = { "Content-Type":"application/json", ...(opciones.headers||{}) };
-  const r = await fetch(API+ruta, { ...opciones, headers });
-  if (!r.ok && r.status!==204) throw new Error(await r.text()||r.statusText);
-  return r.status===204 ? null : r.json();
+  mostrarBloqueo();
+  try {
+    const r = await fetch(API+ruta, { ...opciones, headers });
+    if (!r.ok && r.status!==204) throw new Error(await r.text()||r.statusText);
+    return r.status===204 ? null : r.json();
+  } finally {
+    ocultarBloqueo();
+  }
 }
 const val = id => document.getElementById(id).value.trim();
 const set = (id,v) => document.getElementById(id).value = v ?? "";

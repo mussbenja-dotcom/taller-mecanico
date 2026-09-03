@@ -50,7 +50,7 @@ class ServicioIA:
         cuerpo = {
             "system_instruction": {"parts": [{"text": contexto}]},
             "contents": [{"parts": [{"text": sintomas}]}],
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 800},
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 2000},
         }
 
         ultimo_detalle = ""
