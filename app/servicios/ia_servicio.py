@@ -14,9 +14,10 @@ import httpx
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-# modelo gratuito y rápido de Gemini (actualizado)
-MODELO = "gemini-2.0-flash"
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODELO}:generateContent"
+# Modelos de Gemini a intentar, en orden. Si Google da de baja uno, el sistema
+# prueba el siguiente automáticamente. Así no hay que tocar el código cada vez.
+MODELOS = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 INSTRUCCION = (
     "Sos un asistente experto en mecánica automotriz que ayuda a un taller. "
@@ -52,25 +53,33 @@ class ServicioIA:
             "generationConfig": {"temperature": 0.4, "maxOutputTokens": 800},
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=30) as cliente:
-                r = await cliente.post(
-                    URL,
-                    headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
-                    json=cuerpo,
-                )
-            if r.status_code != 200:
-                # intentar extraer el mensaje real de error que devuelve Gemini
-                detalle = ""
+        ultimo_detalle = ""
+        # probar cada modelo hasta que uno funcione
+        for modelo in MODELOS:
+            url = f"{BASE_URL}/{modelo}:generateContent"
+            try:
+                async with httpx.AsyncClient(timeout=30) as cliente:
+                    r = await cliente.post(
+                        url,
+                        headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+                        json=cuerpo,
+                    )
+                if r.status_code == 200:
+                    data = r.json()
+                    texto = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return {"diagnostico": texto}
+                # si el modelo no existe (404), probar el siguiente
                 try:
-                    err = r.json()
-                    detalle = err.get("error", {}).get("message", "")
+                    ultimo_detalle = r.json().get("error", {}).get("message", "")
                 except Exception:
-                    detalle = r.text[:200]
-                return {"error": f"Gemini respondió con error ({r.status_code}).",
-                        "ayuda": detalle or "Revisá que la API key sea válida y esté activa."}
-            data = r.json()
-            texto = data["candidates"][0]["content"]["parts"][0]["text"]
-            return {"diagnostico": texto}
-        except Exception as e:
-            return {"error": f"No se pudo consultar la IA: {e}"}
+                    ultimo_detalle = r.text[:200]
+                if r.status_code != 404:
+                    # error distinto de "modelo no existe": cortar y avisar
+                    return {"error": f"Gemini respondió con error ({r.status_code}).",
+                            "ayuda": ultimo_detalle or "Revisá que la API key sea válida."}
+            except Exception as e:
+                ultimo_detalle = str(e)
+
+        # ningún modelo funcionó
+        return {"error": "No se pudo conectar con ningún modelo de Gemini.",
+                "ayuda": ultimo_detalle or "Verificá la API key."}

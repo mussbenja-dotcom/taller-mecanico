@@ -56,8 +56,8 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
   </div>
   <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-1">
     <div id="grpGestion" class="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3 px-2">Gestión</div>
-    <a onclick="irA('clientes')" class="nav-item active" data-target="clientes" data-rol="admin"><i class="fa-solid fa-users w-5 text-center"></i> Clientes</a>
-    <a onclick="irA('vehiculos')" class="nav-item" data-target="vehiculos" data-rol="admin"><i class="fa-solid fa-car w-5 text-center"></i> Vehículos</a>
+    <a onclick="irA('clientes')" class="nav-item active" data-target="clientes" data-rol="todos"><i class="fa-solid fa-users w-5 text-center"></i> Clientes</a>
+    <a onclick="irA('vehiculos')" class="nav-item" data-target="vehiculos" data-rol="todos"><i class="fa-solid fa-car w-5 text-center"></i> Vehículos</a>
     <a onclick="irA('presupuestos')" class="nav-item" data-target="presupuestos" data-rol="admin"><i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Presupuestos</a>
     <a onclick="irA('ordenes')" class="nav-item" data-target="ordenes" data-rol="todos"><i class="fa-solid fa-clipboard-list w-5 text-center"></i> Órdenes</a>
     <a onclick="irA('stock')" class="nav-item" data-target="stock" data-rol="admin"><i class="fa-solid fa-box-open w-5 text-center"></i> Stock <span id="alertaStock" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 hidden"></span></a>
@@ -105,7 +105,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
         <div id="formCliente" class="hidden p-6 space-y-4">
           <h2 id="tituloCliente" class="text-lg font-semibold flex items-center gap-2"><i class="fa-solid fa-user-plus text-primary"></i> Nuevo cliente</h2>
           <div><label class="block text-sm text-textMuted mb-1">Nombre *</label><input id="c_nombre" class="input-premium w-full" placeholder="Nombre y apellido"></div>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label class="block text-sm text-textMuted mb-1">Teléfono (con código país)</label><input id="c_telefono" class="input-premium w-full" placeholder="5493462123456"></div>
             <div><label class="block text-sm text-textMuted mb-1">Email</label><input id="c_email" class="input-premium w-full"></div>
           </div>
@@ -236,9 +236,11 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
 
 <script>
 // ===== navegación =====
+// Vistas que puede ver el EMPLEADO (el resto son solo del dueño).
+const VISTAS_EMPLEADO = ["clientes","vehiculos","ordenes","diagnostico"];
 function irA(vista) {
   // el empleado solo puede ver órdenes y diagnóstico
-  if (rolActual === "empleado" && !["ordenes","diagnostico"].includes(vista)) vista = "ordenes";
+  if (rolActual === "empleado" && !VISTAS_EMPLEADO.includes(vista)) vista = "ordenes";
   document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
   document.getElementById('view-'+vista).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.target===vista));
@@ -308,16 +310,18 @@ function pintarSesion(){
   }
 }
 // muestra/oculta secciones del menú según el rol
+// Empleado puede: Clientes, Vehículos, Órdenes, Diagnóstico IA.
+// Empleado NO puede: Presupuestos, Stock, Métricas (precios y facturación).
 function aplicarRol(){
   const esEmpleado = rolActual === "empleado";
-  // ítems solo-admin
+  // ítems solo-admin: se ocultan al empleado
   document.querySelectorAll('[data-rol="admin"]').forEach(el => el.style.display = esEmpleado ? "none" : "");
-  // grupos de encabezado
-  document.getElementById("grpGestion").style.display = esEmpleado ? "none" : "";
-  // si es empleado y está parado en una vista que no puede ver, lo mando a Órdenes
+  // el encabezado "Gestión" se mantiene visible (el empleado ve Clientes/Vehículos/Órdenes)
+  document.getElementById("grpGestion").style.display = "";
+  // si el empleado está en una vista que no puede ver, lo mando a Órdenes
   if (esEmpleado) {
     const activa = document.querySelector('.view-section.active')?.id.replace('view-','');
-    if (!["ordenes","diagnostico"].includes(activa)) irA("ordenes");
+    if (!VISTAS_EMPLEADO.includes(activa)) irA("ordenes");
   }
 }
 
@@ -330,6 +334,7 @@ async function cargarClientes(){
   if(!clientes.length){ ul.innerHTML='<li class="text-center text-textMuted text-sm py-8">Sin clientes.</li>'; return; }
   for(const c of clientes){
     const li=document.createElement("li");
+    li.dataset.id=c.id;
     li.className="p-3 border border-border rounded-lg cursor-pointer hover:border-primary transition-all "+(c.id===clienteActivo?"border-primary bg-primary/5":"");
     li.innerHTML=`<div class="font-semibold">${c.nombre}</div><div class="text-textMuted text-xs">${c.telefono||"sin teléfono"}</div>`;
     li.onclick=()=>verCliente(c.id); ul.appendChild(li);
@@ -387,7 +392,12 @@ async function verCliente(id){
       <button onclick="nuevoAuto()" class="btn-premium text-sm bg-success/10 text-success border border-success/20 hover:bg-success hover:text-white"><i class="fa-solid fa-plus"></i> Agregar auto</button></div>
     <div id="formAuto" class="hidden"></div><div id="listaAutos" class="space-y-2"></div>`;
   cont.innerHTML=html; mostrarPanel("detalleCliente");
-  pintarAutos(c.autos); cargarClientes();
+  pintarAutos(c.autos);
+  // resaltar el cliente activo en la lista SIN volver a pedirla al servidor
+  document.querySelectorAll("#listaClientes li").forEach(li=>{
+    li.classList.toggle("border-primary", li.dataset.id==id);
+    li.classList.toggle("bg-primary/5", li.dataset.id==id);
+  });
 }
 async function borrarCliente(){
   if(!confirm("¿Borrar este cliente y todos sus autos?"))return;
@@ -422,7 +432,7 @@ function nuevoAuto(){ formAutoHTML(null); }
 function editarAuto(a){ formAutoHTML(a); }
 function formAutoHTML(a){
   const f=document.getElementById("formAuto");
-  f.innerHTML=`<div class="doc grid grid-cols-2 gap-3">
+  f.innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3">
     <input id="a_marca" class="input-premium" placeholder="Marca" value="${a?.marca||''}">
     <input id="a_modelo" class="input-premium" placeholder="Modelo" value="${a?.modelo||''}">
     <input id="a_anio" class="input-premium" placeholder="Año" value="${a?.anio||''}">
@@ -446,9 +456,15 @@ async function borrarAuto(id){ if(!confirm("¿Borrar este vehículo?"))return; a
 // ===== PANEL AUTO: presupuestos y órdenes =====
 function alternarAuto(id){ autoAbierto=(autoAbierto===id)?null:id; if(autoAbierto&&!pestaniaActiva[id])pestaniaActiva[id]="presupuestos"; verCliente(clienteActivo); }
 async function renderPanelAuto(autoId){
-  const p=document.getElementById("panel-"+autoId); const activa=pestaniaActiva[autoId]||"presupuestos";
+  const p=document.getElementById("panel-"+autoId);
+  const esEmpleado = rolActual==="empleado";
+  // el empleado solo ve órdenes; el dueño ve presupuestos y órdenes
+  let activa=pestaniaActiva[autoId]|| (esEmpleado?"ordenes":"presupuestos");
+  if(esEmpleado) activa="ordenes";
+  const btnPresu = esEmpleado ? "" :
+    `<button onclick="cambiarPestania(${autoId},'presupuestos')" class="btn-premium text-xs ${activa==='presupuestos'?'bg-primary/10 text-primary border border-primary/20':'border border-border text-textMuted'}">Presupuestos</button>`;
   p.innerHTML=`<div class="flex gap-2 mb-3">
-    <button onclick="cambiarPestania(${autoId},'presupuestos')" class="btn-premium text-xs ${activa==='presupuestos'?'bg-primary/10 text-primary border border-primary/20':'border border-border text-textMuted'}">Presupuestos</button>
+    ${btnPresu}
     <button onclick="cambiarPestania(${autoId},'ordenes')" class="btn-premium text-xs ${activa==='ordenes'?'bg-primary/10 text-primary border border-primary/20':'border border-border text-textMuted'}">Órdenes</button></div>
     <div id="cont-${autoId}"></div>`;
   activa==='presupuestos'?renderPresupuestos(autoId):renderOrdenes(autoId);
@@ -495,17 +511,24 @@ async function ordenDesdePresu(id,autoId){ if(!confirm("¿Convertir en orden de 
 
 let itemsOrdTmp=[], repuestosCache=[];
 async function renderOrdenes(autoId){
-  if(!repuestosCache.length){try{repuestosCache=await api("/api/repuestos");}catch(e){}}
+  const esEmpleado = rolActual==="empleado";
+  if(!esEmpleado && !repuestosCache.length){try{repuestosCache=await api("/api/repuestos");}catch(e){}}
   const cont=document.getElementById("cont-"+autoId); const lista=await api(`/api/autos/${autoId}/ordenes`);
   let html=`<button onclick="formOrden(${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20 mb-2"><i class="fa-solid fa-plus"></i> Nueva orden</button><div id="fo-${autoId}"></div>`;
   if(!lista.length)html+='<p class="text-textMuted text-sm">Sin órdenes.</p>';
   for(const o of lista){
-    html+=`<div class="doc"><div class="flex justify-between items-center"><b>${o.descripcion||"Orden"} <span class="text-textMuted text-xs">#${o.id}</span> <span class="badge-estado est-${o.estado}">${o.estado}</span></b><span class="text-success font-bold">${plata(o.total)}</span></div>
-      <table class="w-full text-xs mt-2">${o.items.map(it=>`<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">${it.cantidad}×${plata(it.precio_unitario)}</td><td class="text-right">${plata(it.subtotal)}</td></tr>`).join("")}</table>
+    const totalHtml = esEmpleado ? "" : `<span class="text-success font-bold">${plata(o.total)}</span>`;
+    const itemsHtml = o.items.map(it=> esEmpleado
+      ? `<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">x${it.cantidad}</td></tr>`
+      : `<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">${it.cantidad}×${plata(it.precio_unitario)}</td><td class="text-right">${plata(it.subtotal)}</td></tr>`
+    ).join("");
+    html+=`<div class="doc"><div class="flex justify-between items-center"><b>${o.descripcion||"Orden"} <span class="text-textMuted text-xs">#${o.id}</span> <span class="badge-estado est-${o.estado}">${o.estado}</span></b>${totalHtml}</div>
+      <table class="w-full text-xs mt-2">${itemsHtml}</table>
       <div class="flex gap-1 mt-2 flex-wrap">
-        <button onclick="enviarWhatsApp('orden',${o.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
+        ${!esEmpleado?`<button onclick="enviarWhatsApp('orden',${o.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>`:""}
         ${o.estado==="pendiente"?`<button onclick="estadoOrden(${o.id},'finalizada',${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20">Finalizar</button>`:""}
-        ${o.estado==="finalizada"?`<button onclick="estadoOrden(${o.id},'cobrada',${autoId})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">Cobrar</button>`:""}
+        ${(o.estado==="finalizada" && !esEmpleado)?`<button onclick="estadoOrden(${o.id},'cobrada',${autoId})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">Cobrar</button>`:""}
+        ${o.estado==="finalizada" && esEmpleado?'<span class="text-textMuted text-xs py-1">Trabajo terminado ✓</span>':""}
         ${o.estado==="cobrada"?'<span class="text-textMuted text-xs py-1">Cerrada ✓</span>':""}</div></div>`;
   }
   cont.innerHTML=html;
@@ -590,7 +613,7 @@ async function cargarRepuestos(){
 function formRepuesto(){ formRepHTML(null); }
 function editarRep(r){ formRepHTML(r); }
 function formRepHTML(r){
-  document.getElementById("formRepuestoCont").innerHTML=`<div class="doc grid grid-cols-2 gap-3 mt-3">
+  document.getElementById("formRepuestoCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
     <input id="r_nombre" class="input-premium col-span-2" placeholder="Nombre" value="${r?.nombre||''}">
     <input id="r_codigo" class="input-premium" placeholder="Código/SKU" value="${r?.codigo||''}">
     <input id="r_precio" class="input-premium" type="number" placeholder="Precio" value="${r?.precio||''}">
@@ -699,7 +722,8 @@ async function cargarOrdenesTodas(){
 // desde una vista general, ir al cliente y abrir su auto
 async function abrirEnCliente(clienteId, autoId){
   irA('clientes'); autoAbierto=autoId;
-  if(!pestaniaActiva[autoId]) pestaniaActiva[autoId]='presupuestos';
+  // el empleado no ve presupuestos: abre directo la pestaña de órdenes
+  if(!pestaniaActiva[autoId]) pestaniaActiva[autoId] = (rolActual==="empleado") ? 'ordenes' : 'presupuestos';
   await verCliente(clienteId);
 }
 async function abrirEnClientePresu(autoId){
