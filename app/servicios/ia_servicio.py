@@ -53,33 +53,42 @@ class ServicioIA:
             "generationConfig": {"temperature": 0.4, "maxOutputTokens": 2000},
         }
 
+        import asyncio
         ultimo_detalle = ""
         # probar cada modelo hasta que uno funcione
         for modelo in MODELOS:
             url = f"{BASE_URL}/{modelo}:generateContent"
-            try:
-                async with httpx.AsyncClient(timeout=30) as cliente:
-                    r = await cliente.post(
-                        url,
-                        headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
-                        json=cuerpo,
-                    )
-                if r.status_code == 200:
-                    data = r.json()
-                    texto = data["candidates"][0]["content"]["parts"][0]["text"]
-                    return {"diagnostico": texto}
-                # si el modelo no existe (404), probar el siguiente
+            # por cada modelo, reintentar hasta 3 veces si está sobrecargado (503)
+            for intento in range(3):
                 try:
-                    ultimo_detalle = r.json().get("error", {}).get("message", "")
-                except Exception:
-                    ultimo_detalle = r.text[:200]
-                if r.status_code != 404:
-                    # error distinto de "modelo no existe": cortar y avisar
-                    return {"error": f"Gemini respondió con error ({r.status_code}).",
+                    async with httpx.AsyncClient(timeout=30) as cliente:
+                        r = await cliente.post(
+                            url,
+                            headers={"x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json"},
+                            json=cuerpo,
+                        )
+                    if r.status_code == 200:
+                        data = r.json()
+                        texto = data["candidates"][0]["content"]["parts"][0]["text"]
+                        return {"diagnostico": texto}
+                    try:
+                        ultimo_detalle = r.json().get("error", {}).get("message", "")
+                    except Exception:
+                        ultimo_detalle = r.text[:200]
+                    # 503 = servidor de Google sobrecargado: esperar y reintentar
+                    if r.status_code == 503:
+                        await asyncio.sleep(1.5 * (intento + 1))
+                        continue
+                    # 404 = modelo no existe: pasar al siguiente modelo
+                    if r.status_code == 404:
+                        break
+                    # otro error: cortar y avisar
+                    return {"error": "La IA no pudo responder.",
                             "ayuda": ultimo_detalle or "Revisá que la API key sea válida."}
-            except Exception as e:
-                ultimo_detalle = str(e)
+                except Exception as e:
+                    ultimo_detalle = str(e)
+                    await asyncio.sleep(1)
 
-        # ningún modelo funcionó
-        return {"error": "No se pudo conectar con ningún modelo de Gemini.",
-                "ayuda": ultimo_detalle or "Verificá la API key."}
+        # ningún modelo/intento funcionó
+        return {"error": "La IA está muy ocupada en este momento.",
+                "ayuda": "Los servidores de Gemini están sobrecargados. Probá de nuevo en unos segundos."}

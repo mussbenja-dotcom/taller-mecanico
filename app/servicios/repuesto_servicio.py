@@ -38,6 +38,8 @@ class ServicioRepuesto:
         items = [_armar(r) for r in res.scalars().all()]
         if solo_bajos:
             items = [i for i in items if i["stock_bajo"]]
+        # ordenar: primero los que tienen stock (>0), después los sin stock
+        items.sort(key=lambda i: (i["cantidad"] <= 0, i["nombre"].lower()))
         return items
 
     @staticmethod

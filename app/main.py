@@ -78,7 +78,7 @@ def _migrar_columnas_faltantes(sync_conn):
                         f"ALTER TABLE {tabla} ADD COLUMN {nombre} {tipo}"))
 
 
-app = FastAPI(title="Taller — API (MVC)", version="0.2.0", lifespan=ciclo_vida)
+app = FastAPI(title="Dodorico Mecánica — API", version="0.2.0", lifespan=ciclo_vida)
 
 app.add_middleware(
     CORSMiddleware,

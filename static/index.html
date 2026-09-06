@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TallerPro — Sistema de Gestión</title>
+<title>Dodorico Mecánica — Sistema de Gestión</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -50,7 +50,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
   <div class="h-16 flex items-center justify-between px-6 border-b border-border">
     <div class="flex items-center gap-3 text-xl font-bold">
       <div class="w-8 h-8 rounded bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center"><i class="fa-solid fa-wrench text-white text-sm"></i></div>
-      <span>Taller<span class="text-primary">Pro</span></span>
+      <span>Dodorico<span class="text-primary"> Mecánica</span></span>
     </div>
     <button onclick="cerrarMenu()" class="lg:hidden text-textMuted"><i class="fa-solid fa-xmark text-xl"></i></button>
   </div>
@@ -80,7 +80,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
 <!-- barra superior solo en celular -->
 <div class="lg:hidden h-14 bg-surface border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
   <button onclick="abrirMenu()" class="text-textMain"><i class="fa-solid fa-bars text-xl"></i></button>
-  <span class="font-bold">Taller<span class="text-primary">Pro</span></span>
+  <span class="font-bold">Dodorico<span class="text-primary"> Mecánica</span></span>
 </div>
 <main class="flex-1 bg-background relative overflow-y-auto min-h-0">
 <div class="max-w-7xl mx-auto p-4 lg:p-6 h-full">
@@ -210,7 +210,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <button onclick="if(token)cerrarLogin()" id="btnCerrarLogin" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-background flex items-center justify-center text-textMuted hover:text-textMain hidden"><i class="fa-solid fa-xmark"></i></button>
     <div class="text-center mb-6">
       <div class="w-16 h-16 bg-gradient-to-br from-primary/20 to-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20"><i class="fa-solid fa-shield-halved text-2xl text-primary"></i></div>
-      <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a TallerPro</p>
+      <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a Dodorico Mecánica</p>
     </div>
     <div class="space-y-4">
       <div><label class="block text-sm text-textMuted mb-1.5">Usuario</label>
@@ -564,18 +564,65 @@ function formOrden(autoId){
   pintaItemsOrd();
 }
 function pintaItemsOrd(){
-  const opts=`<option value="">— repuesto —</option>`+repuestosCache.map(r=>`<option value="${r.id}">${r.nombre} (${r.cantidad})</option>`).join("");
-  document.getElementById("no_items").innerHTML=itemsOrdTmp.map((it,i)=>`<div class="flex gap-1 mb-1">
-    <select class="input-premium w-32 text-xs" onchange="elegirRep(${i},this.value)">${opts.replace(`value="${it.repuesto_id}"`,`value="${it.repuesto_id}" selected`)}</select>
-    <input class="input-premium flex-1 text-xs" placeholder="Descripción" value="${it.descripcion}" oninput="itemsOrdTmp[${i}].descripcion=this.value">
-    <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsOrdTmp[${i}].cantidad=this.value">
-    <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsOrdTmp[${i}].precio_unitario=this.value">
-    <button onclick="itemsOrdTmp.splice(${i},1);pintaItemsOrd()" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button></div>`).join("");
+  document.getElementById("no_items").innerHTML=itemsOrdTmp.map((it,i)=>`<div class="mb-2 relative">
+    <div class="flex gap-1">
+      <div class="relative flex-1">
+        <input class="input-premium w-full text-xs" placeholder="🔍 Buscar repuesto (código o nombre)..."
+          value="${it.descripcion}"
+          oninput="buscarRepPredictivo(${i}, this.value)"
+          onfocus="buscarRepPredictivo(${i}, this.value)"
+          autocomplete="off">
+        <div id="sugerencias-${i}" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-lg max-h-48 overflow-y-auto shadow-lg"></div>
+      </div>
+      <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsOrdTmp[${i}].cantidad=this.value" title="Cantidad">
+      <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsOrdTmp[${i}].precio_unitario=this.value" title="Precio">
+      <button onclick="itemsOrdTmp.splice(${i},1);pintaItemsOrd()" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button>
+    </div>
+    ${it.repuesto_id ? `<div class="text-xs text-success mt-0.5">✓ Repuesto del stock vinculado</div>` : ''}
+  </div>`).join("");
 }
-function elegirRep(i,repId){
-  if(!repId){itemsOrdTmp[i].repuesto_id=null;return;}
-  const rep=repuestosCache.find(r=>r.id==repId);
-  if(rep){itemsOrdTmp[i].repuesto_id=rep.id; itemsOrdTmp[i].descripcion=rep.nombre; itemsOrdTmp[i].precio_unitario=rep.precio; itemsOrdTmp[i].es_repuesto=true; pintaItemsOrd();}
+let _timerBusqueda=null;
+async function buscarRepPredictivo(i, texto){
+  // guardar lo que escribe como descripción libre
+  itemsOrdTmp[i].descripcion = texto;
+  itemsOrdTmp[i].repuesto_id = null;  // si edita el texto, se desvincula hasta que elija uno
+  const cont = document.getElementById("sugerencias-"+i);
+  if(!texto || texto.length<1){ cont.classList.add("hidden"); return; }
+  // buscar en tiempo real (con pequeño retraso para no saturar)
+  clearTimeout(_timerBusqueda);
+  _timerBusqueda = setTimeout(async ()=>{
+    try{
+      const lista = await api(`/api/repuestos?q=${encodeURIComponent(texto)}`);
+      if(!lista.length){ cont.innerHTML='<div class="p-2 text-xs text-textMuted">Sin resultados</div>'; cont.classList.remove("hidden"); return; }
+      cont.innerHTML = lista.map(r=>{
+        const sinStock = r.cantidad<=0;
+        const etiqueta = sinStock ? '<span class="text-red-400 text-[10px] font-semibold">SIN STOCK</span>'
+          : (r.stock_bajo ? '<span class="text-amber-400 text-[10px]">bajo ('+r.cantidad+')</span>' : '<span class="text-success text-[10px]">'+r.cantidad+' u.</span>');
+        return `<div class="p-2 text-xs cursor-pointer hover:bg-surfaceHover flex justify-between items-center ${sinStock?'opacity-50':''}"
+          onclick="elegirRepBuscado(${i}, ${r.id}, ${sinStock})">
+          <span>${r.codigo?('<b>'+r.codigo+'</b> · '):''}${r.nombre}</span> ${etiqueta}</div>`;
+      }).join("");
+      cont.classList.remove("hidden");
+    }catch(e){ cont.classList.add("hidden"); }
+  }, 200);
+}
+let _repuestosBusqueda={};
+async function elegirRepBuscado(i, repId, sinStock){
+  if(sinStock){
+    if(!confirm("Este repuesto está SIN STOCK. ¿Querés agregarlo igual? (podés reponer después)")){ 
+      document.getElementById("sugerencias-"+i).classList.add("hidden"); return; 
+    }
+  }
+  // traer los datos del repuesto elegido
+  const rep = await api(`/api/repuestos?q=`).then(l=>l.find(r=>r.id===repId));
+  if(rep){
+    itemsOrdTmp[i].repuesto_id = rep.id;
+    itemsOrdTmp[i].descripcion = rep.codigo ? `${rep.codigo} - ${rep.nombre}` : rep.nombre;
+    itemsOrdTmp[i].precio_unitario = rep.precio;
+    itemsOrdTmp[i].es_repuesto = true;
+  }
+  document.getElementById("sugerencias-"+i).classList.add("hidden");
+  pintaItemsOrd();
 }
 async function guardarOrden(autoId){
   const items=itemsOrdTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0,repuesto_id:it.repuesto_id||null}));
