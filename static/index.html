@@ -36,6 +36,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
 .doc { @apply bg-background border border-border rounded-lg p-3 mb-2; }
 .badge-estado { @apply text-xs px-2 py-0.5 rounded-full font-semibold; }
 .est-pendiente { @apply bg-amber-500/20 text-amber-400; }
+.est-en_proceso { @apply bg-blue-500/20 text-blue-400; }
 .est-finalizada { @apply bg-success/20 text-success; }
 .est-cobrada { @apply bg-primary/20 text-primary; }
 </style>
@@ -61,6 +62,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <a onclick="irA('presupuestos')" class="nav-item" data-target="presupuestos" data-rol="admin"><i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Presupuestos</a>
     <a onclick="irA('ordenes')" class="nav-item" data-target="ordenes" data-rol="todos"><i class="fa-solid fa-clipboard-list w-5 text-center"></i> Órdenes</a>
     <a onclick="irA('stock')" class="nav-item" data-target="stock" data-rol="admin"><i class="fa-solid fa-box-open w-5 text-center"></i> Stock <span id="alertaStock" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 hidden"></span></a>
+    <a onclick="irA('proveedores')" class="nav-item" data-target="proveedores" data-rol="admin"><i class="fa-solid fa-truck w-5 text-center"></i> Proveedores</a>
     <div id="grpAvanzado" class="mt-8 mb-3 px-2 flex items-center gap-2">
       <span class="text-xs font-semibold text-textMuted uppercase tracking-wider">Avanzado</span>
       <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">IA</span>
@@ -166,6 +168,15 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     </div>
   </section>
 
+  <!-- PROVEEDORES -->
+  <section id="view-proveedores" class="view-section h-full flex flex-col">
+    <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Proveedores</h1>
+      <p class="text-sm text-textMuted mt-1">Tus proveedores de repuestos.</p></div>
+      <button onclick="formProveedor()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nuevo proveedor</button></div>
+    <div id="formProveedorCont" class="px-1"></div>
+    <div class="bg-surface border border-border rounded-xl flex-1 overflow-y-auto p-4" id="listaProveedores"></div>
+  </section>
+
   <!-- MÉTRICAS -->
   <section id="view-metricas" class="view-section h-full flex flex-col">
     <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Resumen del mes</h1>
@@ -225,6 +236,22 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
   </div>
 </div>
 
+<!-- MODAL FALTA DE STOCK -->
+<div id="modalFaltante" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarFaltante()">
+  <div class="bg-surface border border-red-500/30 rounded-2xl p-6 max-w-sm w-full mx-4">
+    <div class="text-center mb-4">
+      <div class="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-500/20"><i class="fa-solid fa-triangle-exclamation text-2xl text-red-400"></i></div>
+      <h2 class="text-lg font-bold text-red-400">Sin stock</h2>
+      <p class="text-textMuted text-sm mt-1"><span id="faltanteNombre" class="text-textMain font-semibold"></span> no tiene stock disponible.</p>
+    </div>
+    <div class="flex flex-col gap-2">
+      <button id="btnPedirProveedor" onclick="pedirAProveedor()" class="btn-premium bg-success/10 text-success border border-success/20 hidden"><i class="fa-brands fa-whatsapp"></i> Pedir a proveedor</button>
+      <button onclick="confirmarFaltante()" class="btn-premium bg-primary/10 text-primary border border-primary/20">Agregar igual (sin stock)</button>
+      <button onclick="cerrarFaltante()" class="btn-premium border border-border hover:bg-background">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL QR -->
 <div id="modalQR" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarQR()">
   <div class="bg-surface border border-border rounded-2xl p-6 text-center max-w-sm w-full mx-4">
@@ -257,6 +284,7 @@ function irA(vista) {
   if (vista==='presupuestos') cargarPresupuestosTodos();
   if (vista==='ordenes') cargarOrdenesTodas();
   if (vista==='stock') cargarRepuestos();
+  if (vista==='proveedores') cargarProveedores();
   if (vista==='metricas') inicializarMetricas();
   if (vista==='diagnostico') verificarIA();
 }
@@ -431,7 +459,9 @@ async function borrarCliente(){
 }
 
 // ===== AUTOS =====
+let autosActivos = {};  // {autoId: {marca, modelo}} para el buscador de compatibilidad
 function pintarAutos(autos){
+  autos.forEach(a => autosActivos[a.id] = {marca:a.marca, modelo:a.modelo});
   const cont=document.getElementById("listaAutos"); cont.innerHTML="";
   if(!autos.length){cont.innerHTML='<p class="text-textMuted text-sm">Sin vehículos.</p>';return;}
   for(const a of autos){
@@ -509,21 +539,33 @@ async function renderPresupuestos(autoId){
 }
 let itemsTmp=[];
 function formPresupuesto(autoId){
-  itemsTmp=[{descripcion:"",cantidad:1,precio_unitario:0,es_repuesto:true}];
+  _autoPresupActual = autoId;
+  itemsTmp=[{descripcion:"",cantidad:1,precio_unitario:0,es_repuesto:true,repuesto_id:null}];
   document.getElementById("fp-"+autoId).innerHTML=`<div class="doc"><input id="np_desc" class="input-premium w-full mb-2" placeholder="Descripción (ej: Service)">
-    <div id="np_items"></div><button onclick="itemsTmp.push({descripcion:'',cantidad:1,precio_unitario:0,es_repuesto:true});pintaItems('np_items',itemsTmp)" class="btn-premium text-xs border border-border mt-1">+ Ítem</button>
+    <div id="np_items"></div><button onclick="itemsTmp.push({descripcion:'',cantidad:1,precio_unitario:0,es_repuesto:true,repuesto_id:null});pintaItems(${autoId})" class="btn-premium text-xs border border-border mt-1">+ Ítem</button>
+    <p class="text-textMuted text-xs mt-2">Tip: buscá un repuesto del stock por código o nombre.</p>
     <div class="flex justify-end mt-2"><button onclick="guardarPresu(${autoId})" class="btn-premium text-xs bg-success text-white">Guardar</button></div></div>`;
-  pintaItems("np_items",itemsTmp);
+  pintaItems(autoId);
 }
-function pintaItems(cont,arr){
-  document.getElementById(cont).innerHTML=arr.map((it,i)=>`<div class="flex gap-1 mb-1">
-    <input class="input-premium flex-1 text-xs" placeholder="Descripción" value="${it.descripcion}" oninput="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}[${i}].descripcion=this.value">
-    <input class="input-premium w-16 text-xs" type="number" value="${it.cantidad}" oninput="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}[${i}].cantidad=this.value">
-    <input class="input-premium w-24 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}[${i}].precio_unitario=this.value">
-    <button onclick="${cont==='np_items'?'itemsTmp':'itemsOrdTmp'}.splice(${i},1);pintaItems('${cont}',${cont==='np_items'?'itemsTmp':'itemsOrdTmp'})" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button></div>`).join("");
+// buscador predictivo para PRESUPUESTOS (mismo comportamiento que órdenes)
+function pintaItems(autoId){
+  document.getElementById("np_items").innerHTML=itemsTmp.map((it,i)=>`<div class="mb-2 relative">
+    <div class="flex gap-1">
+      <div class="relative flex-1">
+        <input class="input-premium w-full text-xs" placeholder="🔍 Buscar repuesto (código o nombre)..."
+          value="${it.descripcion}" oninput="buscarRepPredictivoGen('itemsTmp','npsug',${i},${autoId},this.value)"
+          onfocus="buscarRepPredictivoGen('itemsTmp','npsug',${i},${autoId},this.value)" autocomplete="off">
+        <div id="npsug-${i}" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-lg max-h-48 overflow-y-auto shadow-lg"></div>
+      </div>
+      <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsTmp[${i}].cantidad=this.value" title="Cantidad">
+      <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsTmp[${i}].precio_unitario=this.value" title="Precio">
+      <button onclick="itemsTmp.splice(${i},1);pintaItems(${autoId})" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button>
+    </div>
+    ${it.repuesto_id ? `<div class="text-xs text-success mt-0.5">✓ Repuesto del stock vinculado</div>` : ''}
+  </div>`).join("");
 }
 async function guardarPresu(autoId){
-  const items=itemsTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0}));
+  const items=itemsTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0,repuesto_id:it.repuesto_id||null}));
   await api("/api/presupuestos",{method:"POST",body:JSON.stringify({auto_id:autoId,descripcion:val("np_desc")||null,items})});
   renderPresupuestos(autoId);
 }
@@ -531,7 +573,7 @@ async function borrarPresu(id,autoId){ if(!confirm("¿Borrar este presupuesto?")
 async function ordenDesdePresu(id,autoId){ if(!confirm("¿Convertir en orden de trabajo?\n(La orden queda grabada de forma permanente)"))return;
   await api("/api/ordenes/desde-presupuesto",{method:"POST",body:JSON.stringify({presupuesto_id:id})}); cambiarPestania(autoId,"ordenes"); }
 
-let itemsOrdTmp=[], repuestosCache=[];
+let itemsOrdTmp=[], repuestosCache=[], proveedoresCache=[];
 async function renderOrdenes(autoId){
   const esEmpleado = rolActual==="empleado";
   if(!esEmpleado && !repuestosCache.length){try{repuestosCache=await api("/api/repuestos");}catch(e){}}
@@ -548,7 +590,8 @@ async function renderOrdenes(autoId){
       <table class="w-full text-xs mt-2">${itemsHtml}</table>
       <div class="flex gap-1 mt-2 flex-wrap">
         ${!esEmpleado?`<button onclick="enviarWhatsApp('orden',${o.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>`:""}
-        ${o.estado==="pendiente"?`<button onclick="estadoOrden(${o.id},'finalizada',${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20">Finalizar</button>`:""}
+        ${o.estado==="pendiente"?`<button onclick="estadoOrden(${o.id},'en_proceso',${autoId})" class="btn-premium text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20">▶ Pasar a En Proceso</button>`:""}
+        ${o.estado==="en_proceso"?`<button onclick="estadoOrden(${o.id},'finalizada',${autoId})" class="btn-premium text-xs bg-success/10 text-success border border-success/20">Finalizar</button>`:""}
         ${(o.estado==="finalizada" && !esEmpleado)?`<button onclick="estadoOrden(${o.id},'cobrada',${autoId})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">Cobrar</button>`:""}
         ${o.estado==="finalizada" && esEmpleado?'<span class="text-textMuted text-xs py-1">Trabajo terminado ✓</span>':""}
         ${o.estado==="cobrada"?'<span class="text-textMuted text-xs py-1">Cerrada ✓</span>':""}</div></div>`;
@@ -556,6 +599,7 @@ async function renderOrdenes(autoId){
   cont.innerHTML=html;
 }
 function formOrden(autoId){
+  ordAutoIdActual = autoId;
   itemsOrdTmp=[{descripcion:"",cantidad:1,precio_unitario:0,es_repuesto:true,repuesto_id:null}];
   document.getElementById("fo-"+autoId).innerHTML=`<div class="doc"><input id="no_desc" class="input-premium w-full mb-2" placeholder="Descripción (ej: Cambio de correa)">
     <div id="no_items"></div><button onclick="itemsOrdTmp.push({descripcion:'',cantidad:1,precio_unitario:0,es_repuesto:true,repuesto_id:null});pintaItemsOrd()" class="btn-premium text-xs border border-border mt-1">+ Ítem</button>
@@ -582,56 +626,115 @@ function pintaItemsOrd(){
   </div>`).join("");
 }
 let _timerBusqueda=null;
+// buscador para ÓRDENES (delega en la función genérica)
 async function buscarRepPredictivo(i, texto){
-  // guardar lo que escribe como descripción libre
-  itemsOrdTmp[i].descripcion = texto;
-  itemsOrdTmp[i].repuesto_id = null;  // si edita el texto, se desvincula hasta que elija uno
-  const cont = document.getElementById("sugerencias-"+i);
+  buscarRepPredictivoGen('itemsOrdTmp','sugerencias',i,ordAutoIdActual,texto);
+}
+async function elegirRepBuscado(i, repId, sinStock){
+  elegirRepBuscadoGen('itemsOrdTmp','sugerencias',i,repId,sinStock,()=>pintaItemsOrd());
+}
+
+// ===== BUSCADOR PREDICTIVO GENÉRICO (presupuestos y órdenes) =====
+// arrNombre: 'itemsTmp' o 'itemsOrdTmp' | sugPrefix: id del contenedor de sugerencias
+async function buscarRepPredictivoGen(arrNombre, sugPrefix, i, autoId, texto){
+  const arr = window[arrNombre];
+  arr[i].descripcion = texto;
+  arr[i].repuesto_id = null;
+  const cont = document.getElementById(`${sugPrefix}-${i}`);
   if(!texto || texto.length<1){ cont.classList.add("hidden"); return; }
-  // buscar en tiempo real (con pequeño retraso para no saturar)
+  // pasar marca/modelo del auto para priorizar compatibles
+  const auto = autosActivos[autoId] || {};
+  let url = `/api/repuestos?q=${encodeURIComponent(texto)}`;
+  if(auto.marca) url += `&marca=${encodeURIComponent(auto.marca)}`;
+  if(auto.modelo) url += `&modelo=${encodeURIComponent(auto.modelo)}`;
   clearTimeout(_timerBusqueda);
   _timerBusqueda = setTimeout(async ()=>{
     try{
-      const lista = await api(`/api/repuestos?q=${encodeURIComponent(texto)}`);
+      const lista = await api(url);
       if(!lista.length){ cont.innerHTML='<div class="p-2 text-xs text-textMuted">Sin resultados</div>'; cont.classList.remove("hidden"); return; }
       cont.innerHTML = lista.map(r=>{
-        const sinStock = r.cantidad<=0;
+        const disp = r.disponible !== undefined ? r.disponible : r.cantidad;
+        const sinStock = disp<=0;
         const etiqueta = sinStock ? '<span class="text-red-400 text-[10px] font-semibold">SIN STOCK</span>'
-          : (r.stock_bajo ? '<span class="text-amber-400 text-[10px]">bajo ('+r.cantidad+')</span>' : '<span class="text-success text-[10px]">'+r.cantidad+' u.</span>');
+          : (r.stock_bajo ? '<span class="text-amber-400 text-[10px]">bajo ('+disp+' disp.)</span>' : '<span class="text-success text-[10px]">'+disp+' disp.</span>');
+        const compat = r.compatible ? '<span class="text-blue-400 text-[10px] font-semibold ml-1">✓ compatible</span>' : '';
         return `<div class="p-2 text-xs cursor-pointer hover:bg-surfaceHover flex justify-between items-center ${sinStock?'opacity-50':''}"
-          onclick="elegirRepBuscado(${i}, ${r.id}, ${sinStock})">
-          <span>${r.codigo?('<b>'+r.codigo+'</b> · '):''}${r.nombre}</span> ${etiqueta}</div>`;
+          onclick="elegirRepBuscadoGen('${arrNombre}','${sugPrefix}',${i},${r.id},${sinStock}, window['_repintar_${arrNombre}'])">
+          <span>${r.codigo?('<b>'+r.codigo+'</b> · '):''}${r.nombre}${compat}</span> ${etiqueta}</div>`;
       }).join("");
       cont.classList.remove("hidden");
     }catch(e){ cont.classList.add("hidden"); }
   }, 200);
 }
-let _repuestosBusqueda={};
-async function elegirRepBuscado(i, repId, sinStock){
-  if(sinStock){
-    if(!confirm("Este repuesto está SIN STOCK. ¿Querés agregarlo igual? (podés reponer después)")){ 
-      document.getElementById("sugerencias-"+i).classList.add("hidden"); return; 
-    }
-  }
-  // traer los datos del repuesto elegido
+async function elegirRepBuscadoGen(arrNombre, sugPrefix, i, repId, sinStock, repintar){
+  const arr = window[arrNombre];
+  document.getElementById(`${sugPrefix}-${i}`).classList.add("hidden");
   const rep = await api(`/api/repuestos?q=`).then(l=>l.find(r=>r.id===repId));
-  if(rep){
-    itemsOrdTmp[i].repuesto_id = rep.id;
-    itemsOrdTmp[i].descripcion = rep.codigo ? `${rep.codigo} - ${rep.nombre}` : rep.nombre;
-    itemsOrdTmp[i].precio_unitario = rep.precio;
-    itemsOrdTmp[i].es_repuesto = true;
+  if(!rep) return;
+  if(sinStock){
+    // en vez del confirm nativo, abrir la modal propia de faltante
+    abrirFaltante(rep, ()=>{
+      arr[i].repuesto_id = rep.id;
+      arr[i].descripcion = rep.codigo ? `${rep.codigo} - ${rep.nombre}` : rep.nombre;
+      arr[i].precio_unitario = rep.precio;
+      arr[i].es_repuesto = true;
+      if(typeof repintar === "function") repintar();
+    });
+    return;
   }
-  document.getElementById("sugerencias-"+i).classList.add("hidden");
-  pintaItemsOrd();
+  arr[i].repuesto_id = rep.id;
+  arr[i].descripcion = rep.codigo ? `${rep.codigo} - ${rep.nombre}` : rep.nombre;
+  arr[i].precio_unitario = rep.precio;
+  arr[i].es_repuesto = true;
+  if(typeof repintar === "function") repintar();
 }
+
+// ===== MODAL DE FALTA DE STOCK =====
+let _faltanteRep=null, _faltanteCallback=null;
+function abrirFaltante(rep, callback){
+  _faltanteRep = rep; _faltanteCallback = callback;
+  document.getElementById("faltanteNombre").textContent = rep.nombre;
+  // el botón "pedir a proveedor" solo si el repuesto tiene proveedor
+  document.getElementById("btnPedirProveedor").classList.toggle("hidden", !rep.proveedor_id);
+  const m=document.getElementById("modalFaltante"); m.classList.remove("hidden"); m.classList.add("flex");
+}
+function cerrarFaltante(){ const m=document.getElementById("modalFaltante"); m.classList.add("hidden"); m.classList.remove("flex"); }
+function confirmarFaltante(){
+  if(_faltanteCallback) _faltanteCallback();
+  cerrarFaltante();
+}
+async function pedirAProveedor(){
+  if(!_faltanteRep) return;
+  try {
+    const r = await api(`/api/whatsapp/reposicion/${_faltanteRep.id}`);
+    window.open(r.link, "_blank");
+  } catch(e) { alert("No se pudo generar el pedido al proveedor."); }
+}
+// callbacks de repintado para la genérica
+window['_repintar_itemsTmp'] = ()=> pintaItems(_autoPresupActual);
+window['_repintar_itemsOrdTmp'] = ()=> pintaItemsOrd();
+let _autoPresupActual=null, ordAutoIdActual=null;
 async function guardarOrden(autoId){
   const items=itemsOrdTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0,repuesto_id:it.repuesto_id||null}));
   await api("/api/ordenes",{method:"POST",body:JSON.stringify({auto_id:autoId,descripcion:val("no_desc")||null,items})});
   renderOrdenes(autoId);
 }
 async function estadoOrden(id,estado,autoId){
-  const msg=estado==="finalizada"?"¿Marcar como FINALIZADA?\n(Se descuenta el stock de los repuestos)":"¿Marcar como COBRADA?\n(Queda cerrada)";
-  if(!confirm(msg))return; await api(`/api/ordenes/${id}/estado`,{method:"PATCH",body:JSON.stringify({estado})}); renderOrdenes(autoId); actualizarAlertaStock();
+  const mensajes = {
+    "en_proceso": "¿Pasar la orden a EN PROCESO?\n(El vehículo entró al taller. Se valida y reserva el stock de los repuestos)",
+    "finalizada": "¿Marcar como FINALIZADA?\n(Se descuenta definitivamente el stock)",
+    "cobrada": "¿Marcar como COBRADA?\n(Queda cerrada)"
+  };
+  if(!confirm(mensajes[estado]||"¿Cambiar estado?"))return;
+  try {
+    await api(`/api/ordenes/${id}/estado`,{method:"PATCH",body:JSON.stringify({estado})});
+    renderOrdenes(autoId); actualizarAlertaStock();
+  } catch(e) {
+    // mostrar el mensaje real del backend (ej: stock insuficiente)
+    let msg = "No se pudo cambiar el estado.";
+    try { const err = JSON.parse(e.message); if(err.detail) msg = err.detail; } catch(_) { if(e.message) msg = e.message; }
+    alert("⚠ " + msg);
+  }
 }
 
 // ===== WHATSAPP =====
@@ -665,6 +768,8 @@ function imprimirQR(){ const img=document.getElementById("qrImg").src; const w=w
 
 // ===== STOCK =====
 async function cargarRepuestos(){
+  // cargar proveedores para el selector del form de repuesto
+  try { proveedoresCache = await api("/api/proveedores"); } catch(e){ proveedoresCache=[]; }
   const q=val("busquedaRep"); const lista=await api("/api/repuestos"+(q?`?q=${encodeURIComponent(q)}`:"")); repuestosCache=lista;
   const cont=document.getElementById("listaRepuestos");
   if(!lista.length){cont.innerHTML='<p class="text-center text-textMuted py-8">Sin repuestos. Cargá el primero.</p>';return;}
@@ -682,18 +787,25 @@ async function cargarRepuestos(){
 function formRepuesto(){ formRepHTML(null); }
 function editarRep(r){ formRepHTML(r); }
 function formRepHTML(r){
+  const opcionesProv = `<option value="">— sin proveedor —</option>` +
+    proveedoresCache.map(p=>`<option value="${p.id}" ${r?.proveedor_id==p.id?'selected':''}>${p.nombre}</option>`).join("");
   document.getElementById("formRepuestoCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
     <input id="r_nombre" class="input-premium col-span-2" placeholder="Nombre" value="${r?.nombre||''}">
     <input id="r_codigo" class="input-premium" placeholder="Código/SKU" value="${r?.codigo||''}">
     <input id="r_precio" class="input-premium" type="number" placeholder="Precio" value="${r?.precio||''}">
     <input id="r_cantidad" class="input-premium" type="number" placeholder="Cantidad" value="${r?.cantidad??''}">
     <input id="r_minimo" class="input-premium" type="number" placeholder="Mínimo (alerta)" value="${r?.minimo??1}">
+    <input id="r_marcacompat" class="input-premium" placeholder="Marca compatible (opcional)" value="${r?.marca_compatible||''}">
+    <input id="r_modelocompat" class="input-premium" placeholder="Modelo compatible (opcional)" value="${r?.modelo_compatible||''}">
+    <select id="r_proveedor" class="input-premium col-span-2">${opcionesProv}</select>
     <div class="col-span-2 flex justify-end gap-2"><button onclick="document.getElementById('formRepuestoCont').innerHTML=''" class="btn-premium text-sm border border-border">Cancelar</button>
       <button onclick="guardarRep(${r?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
 }
 async function guardarRep(id){
   const cuerpo={nombre:val("r_nombre"),codigo:val("r_codigo")||null,precio:parseFloat(val("r_precio"))||0,
-    cantidad:parseInt(val("r_cantidad"))||0,minimo:parseInt(val("r_minimo"))||1};
+    cantidad:parseInt(val("r_cantidad"))||0,minimo:parseInt(val("r_minimo"))||1,
+    marca_compatible:val("r_marcacompat")||null,modelo_compatible:val("r_modelocompat")||null,
+    proveedor_id: document.getElementById("r_proveedor").value ? parseInt(document.getElementById("r_proveedor").value) : null};
   if(!cuerpo.nombre){alert("El nombre es obligatorio");return;}
   if(id)await api(`/api/repuestos/${id}`,{method:"PUT",body:JSON.stringify(cuerpo)});
   else await api("/api/repuestos",{method:"POST",body:JSON.stringify(cuerpo)});
@@ -786,7 +898,20 @@ async function cargarOrdenesTodas(){
     <div class="min-w-0"><div class="font-medium truncate">${o.descripcion||"Orden"} <span class="text-textMuted text-xs">#${o.id}</span> <span class="badge-estado est-${o.estado}">${o.estado}</span></div>
       <div class="text-textMuted text-xs mt-0.5 truncate">${o.auto_desc||''} ${o.patente?'· '+o.patente:''} · ${o.cliente_nombre||'—'}</div></div>
     <div class="flex items-center gap-3 flex-shrink-0">${verPrecio?`<span class="text-success font-bold">${plata(o.total)}</span>`:''}
+      ${(rolActual==="admin" && o.estado==="pendiente")?`<button onclick="borrarOrden(${o.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-trash"></i></button>`:''}
       <button onclick="abrirEnClientePresu(${o.auto_id})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">Ver <i class="fa-solid fa-arrow-right"></i></button></div></div>`).join("");
+}
+// borrar orden: solo admin, solo pendiente (el backend lo revalida). Manda el token.
+async function borrarOrden(id){
+  if(!confirm("¿Eliminar esta orden pendiente?\n(Queda registrado en la auditoría del sistema)"))return;
+  try {
+    await api(`/api/ordenes/${id}`, {method:"DELETE", headers:{"Authorization":"Bearer "+token}});
+    cargarOrdenesTodas(); actualizarAlertaStock();
+  } catch(e) {
+    let msg = "No se pudo eliminar."; 
+    try { const err=JSON.parse(e.message); if(err.detail) msg=err.detail; } catch(_){ if(e.message) msg=e.message; }
+    alert("⚠ " + msg);
+  }
 }
 // desde una vista general, ir al cliente y abrir su auto
 async function abrirEnCliente(clienteId, autoId){
@@ -799,6 +924,38 @@ async function abrirEnClientePresu(autoId){
   // buscar a qué cliente pertenece el auto y abrirlo
   const auto=await api(`/api/autos/${autoId}`);
   abrirEnCliente(auto.cliente_id, autoId);
+}
+
+// ===== PROVEEDORES =====
+async function cargarProveedores(){
+  proveedoresCache = await api("/api/proveedores");
+  const cont=document.getElementById("listaProveedores");
+  if(!proveedoresCache.length){cont.innerHTML='<p class="text-center text-textMuted py-8">Sin proveedores. Cargá el primero.</p>';return;}
+  cont.innerHTML=proveedoresCache.map(p=>`<div class="doc flex items-center justify-between">
+    <div><div class="font-medium"><i class="fa-solid fa-truck text-primary"></i> ${p.nombre}</div>
+      <div class="text-textMuted text-xs mt-0.5">${p.telefono?'<i class="fa-brands fa-whatsapp text-success"></i> '+p.telefono:'sin teléfono'}${p.notas?' · '+p.notas:''}</div></div>
+    <div class="flex gap-1">
+      <button onclick='formProveedor(${JSON.stringify(p)})' class="btn-premium text-xs border border-border">Editar</button>
+      <button onclick="borrarProveedor(${p.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20">Borrar</button></div></div>`).join("");
+}
+function formProveedor(p){
+  document.getElementById("formProveedorCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+    <input id="p_nombre" class="input-premium col-span-2" placeholder="Nombre del proveedor" value="${p?.nombre||''}">
+    <input id="p_telefono" class="input-premium" placeholder="Teléfono (con código país)" value="${p?.telefono||''}">
+    <input id="p_notas" class="input-premium" placeholder="Notas (opcional)" value="${p?.notas||''}">
+    <div class="col-span-2 flex justify-end gap-2"><button onclick="document.getElementById('formProveedorCont').innerHTML=''" class="btn-premium text-sm border border-border">Cancelar</button>
+      <button onclick="guardarProveedor(${p?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
+}
+async function guardarProveedor(id){
+  const cuerpo={nombre:val("p_nombre"),telefono:val("p_telefono")||null,notas:val("p_notas")||null};
+  if(!cuerpo.nombre){alert("El nombre es obligatorio");return;}
+  if(id)await api(`/api/proveedores/${id}`,{method:"PUT",body:JSON.stringify(cuerpo)});
+  else await api("/api/proveedores",{method:"POST",body:JSON.stringify(cuerpo)});
+  document.getElementById("formProveedorCont").innerHTML=""; cargarProveedores();
+}
+async function borrarProveedor(id){
+  if(!confirm("¿Borrar este proveedor?"))return;
+  await api(`/api/proveedores/${id}`,{method:"DELETE"}); cargarProveedores();
 }
 
 // ===== arranque =====

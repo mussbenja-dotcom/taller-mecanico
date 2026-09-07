@@ -14,10 +14,12 @@ router = APIRouter(prefix="/api/repuestos", tags=["repuestos"])
 @router.get("", response_model=list[RepuestoRespuesta])
 async def listar(
     q: str | None = None, solo_bajos: bool = False,
+    marca: str | None = None, modelo: str | None = None,
     sesion: AsyncSession = Depends(obtener_sesion)
 ):
-    """Lista repuestos. ?q= busca; ?solo_bajos=true trae solo los de stock bajo."""
-    return await ServicioRepuesto.listar(sesion, q, solo_bajos)
+    """Lista repuestos. ?q= busca; ?solo_bajos=true trae los de stock bajo;
+    ?marca=&modelo= prioriza los compatibles con ese auto."""
+    return await ServicioRepuesto.listar(sesion, q, solo_bajos, marca, modelo)
 
 
 @router.get("/{repuesto_id}", response_model=RepuestoRespuesta)

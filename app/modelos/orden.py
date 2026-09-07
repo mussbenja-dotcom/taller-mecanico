@@ -17,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.nucleo.base_datos import Base
 
 # Estados válidos de una orden.
-ESTADOS_ORDEN = ("pendiente", "finalizada", "cobrada")
+ESTADOS_ORDEN = ("pendiente", "en_proceso", "finalizada", "cobrada")
 
 
 class OrdenTrabajo(Base):
@@ -60,5 +60,8 @@ class OrdenItem(Base):
     es_repuesto: Mapped[bool] = mapped_column(default=True)
     # a futuro: id del repuesto en el stock, para descontar al finalizar (Etapa 3)
     repuesto_id: Mapped[int | None] = mapped_column(Integer)
+    # marca si este ítem ya tiene su stock reservado (Etapa B). Evita reservar
+    # o descontar dos veces el mismo ítem.
+    reservado: Mapped[bool] = mapped_column(default=False)
 
     orden: Mapped["OrdenTrabajo"] = relationship(back_populates="items")

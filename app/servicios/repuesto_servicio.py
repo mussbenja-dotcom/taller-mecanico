@@ -16,9 +16,13 @@ from app.esquemas.repuesto import RepuestoCrear, RepuestoActualizar
 
 
 def _armar(r: Repuesto) -> dict:
+    disponible = r.cantidad - r.reservado
     return {
         "id": r.id, "nombre": r.nombre, "codigo": r.codigo, "precio": r.precio,
-        "cantidad": r.cantidad, "minimo": r.minimo,
+        "cantidad": r.cantidad, "reservado": r.reservado, "disponible": disponible,
+        "minimo": r.minimo,
+        "marca_compatible": r.marca_compatible, "modelo_compatible": r.modelo_compatible,
+        "proveedor_id": r.proveedor_id,
         "stock_bajo": r.cantidad <= r.minimo,
         "creado_en": r.creado_en, "actualizado_en": r.actualizado_en,
     }
@@ -27,7 +31,8 @@ def _armar(r: Repuesto) -> dict:
 class ServicioRepuesto:
 
     @staticmethod
-    async def listar(sesion: AsyncSession, q: str | None = None, solo_bajos: bool = False) -> list[dict]:
+    async def listar(sesion: AsyncSession, q: str | None = None, solo_bajos: bool = False,
+                     marca: str | None = None, modelo: str | None = None) -> list[dict]:
         consulta = select(Repuesto).order_by(Repuesto.nombre)
         if q:
             patron = f"%{q}%"
@@ -38,8 +43,24 @@ class ServicioRepuesto:
         items = [_armar(r) for r in res.scalars().all()]
         if solo_bajos:
             items = [i for i in items if i["stock_bajo"]]
-        # ordenar: primero los que tienen stock (>0), después los sin stock
-        items.sort(key=lambda i: (i["cantidad"] <= 0, i["nombre"].lower()))
+
+        # ¿este repuesto es compatible con el auto (marca/modelo) que se está armando?
+        def es_compatible(i):
+            if not marca and not modelo:
+                return False
+            mc = (i["marca_compatible"] or "").strip().lower()
+            mo = (i["modelo_compatible"] or "").strip().lower()
+            if not mc and not mo:
+                return False  # sin datos = sirve para todo, pero no lo priorizamos
+            coincide_marca = (not mc) or (marca and mc == marca.strip().lower())
+            coincide_modelo = (not mo) or (modelo and mo == modelo.strip().lower())
+            return bool(coincide_marca and coincide_modelo)
+
+        for i in items:
+            i["compatible"] = es_compatible(i)
+
+        # ordenar: compatibles primero, después con stock, después el resto (por nombre)
+        items.sort(key=lambda i: (not i["compatible"], i["cantidad"] <= 0, i["nombre"].lower()))
         return items
 
     @staticmethod
@@ -78,18 +99,48 @@ class ServicioRepuesto:
         return _armar(rep)
 
     @staticmethod
-    async def descontar(sesion: AsyncSession, repuesto_id: int, cantidad: int) -> None:
+    async def reservar(sesion: AsyncSession, repuesto_id: int, cantidad: int) -> None:
         """
-        Descuenta stock de un repuesto. Lo usa la orden al finalizar.
-        NO hace commit: lo hace el que lo llama, para que todo el descuento
-        de la orden entre en una sola transacción.
+        Reserva unidades de un repuesto (para un presupuesto/orden pendiente).
+        Sube 'reservado'. NO hace commit (entra en la transacción del que llama).
+        Falla si no hay disponible suficiente (disponible = cantidad - reservado).
+        Se relee el repuesto dentro de la transacción para controlar concurrencia:
+        dos órdenes no pueden reservar las mismas unidades a la vez.
         """
-        rep = await sesion.get(Repuesto, repuesto_id)
+        rep = await sesion.get(Repuesto, repuesto_id, with_for_update=True)
+        if not rep:
+            return
+        disponible = rep.cantidad - rep.reservado
+        if disponible < cantidad:
+            raise HTTPException(
+                400,
+                f"Stock insuficiente de '{rep.nombre}'. Disponible: {disponible}, se pidió: {cantidad}."
+            )
+        rep.reservado += cantidad
+
+    @staticmethod
+    async def liberar(sesion: AsyncSession, repuesto_id: int, cantidad: int) -> None:
+        """Libera una reserva (al borrar/editar un presupuesto u orden). NO commitea."""
+        rep = await sesion.get(Repuesto, repuesto_id, with_for_update=True)
+        if not rep:
+            return
+        rep.reservado = max(0, rep.reservado - cantidad)
+
+    @staticmethod
+    async def descontar(sesion: AsyncSession, repuesto_id: int, cantidad: int,
+                        desde_reserva: bool = False) -> None:
+        """
+        Descuenta stock real de un repuesto. Lo usa la orden al finalizar.
+        NO hace commit: lo hace el que lo llama (una sola transacción por orden).
+        Si desde_reserva=True, además baja la reserva (la reserva se convierte
+        en consumo real: no queda 'reservado' fantasma después de finalizar).
+        """
+        rep = await sesion.get(Repuesto, repuesto_id, with_for_update=True)
         if not rep:
             return  # si el ítem no está vinculado a un repuesto real, se ignora
-        nueva = rep.cantidad - cantidad
-        # no se permite negativo: se deja en 0 y listo (el trabajo ya se hizo)
-        rep.cantidad = max(0, nueva)
+        rep.cantidad = max(0, rep.cantidad - cantidad)
+        if desde_reserva:
+            rep.reservado = max(0, rep.reservado - cantidad)
 
     @staticmethod
     async def borrar(sesion: AsyncSession, rep: Repuesto) -> None:

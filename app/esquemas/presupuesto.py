@@ -10,6 +10,7 @@ class ItemBase(BaseModel):
     cantidad: Decimal = Decimal(1)
     precio_unitario: Decimal = Decimal(0)
     es_repuesto: bool = True
+    repuesto_id: int | None = None
 
 
 class ItemCrear(ItemBase):

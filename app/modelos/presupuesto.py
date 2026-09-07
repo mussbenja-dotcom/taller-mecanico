@@ -45,5 +45,7 @@ class PresupuestoItem(Base):
     precio_unitario: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
     # es_repuesto=True: es un repuesto (a futuro descontará stock). False: mano de obra u otro.
     es_repuesto: Mapped[bool] = mapped_column(default=True)
+    # vínculo al repuesto del stock (Etapa C), igual que OrdenItem
+    repuesto_id: Mapped[int | None] = mapped_column(Integer)
 
     presupuesto: Mapped["Presupuesto"] = relationship(back_populates="items")

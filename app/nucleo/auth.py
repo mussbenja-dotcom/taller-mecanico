@@ -59,3 +59,38 @@ def token_valido(token: str | None) -> bool:
 
 def cerrar_sesion(token: str) -> None:
     _TOKENS.pop(token, None)
+
+
+# ============================================================
+# Dependencias de FastAPI para validar rol en el BACKEND.
+# Hasta ahora el control de rol vivía solo en el frontend (esconder botones).
+# Esto agrega validación real: aunque alguien llame la API directo, se controla.
+# El frontend manda el token en el header "Authorization: Bearer <token>".
+# ============================================================
+from fastapi import Header, HTTPException
+
+
+def _extraer_token(authorization: str | None) -> str | None:
+    """Saca el token del header 'Authorization: Bearer <token>'."""
+    if not authorization:
+        return None
+    partes = authorization.split()
+    if len(partes) == 2 and partes[0].lower() == "bearer":
+        return partes[1]
+    return authorization  # por si mandan el token pelado
+
+
+def requiere_rol(*roles_permitidos: str):
+    """
+    Devuelve una dependencia que exige que el usuario tenga uno de los roles
+    indicados. Uso: Depends(requiere_rol("admin")).
+    """
+    async def verificar(authorization: str | None = Header(default=None)) -> str:
+        token = _extraer_token(authorization)
+        rol = rol_de_token(token)
+        if not rol:
+            raise HTTPException(401, "No autenticado. Iniciá sesión.")
+        if roles_permitidos and rol not in roles_permitidos:
+            raise HTTPException(403, "No tenés permisos para esta acción.")
+        return rol
+    return verificar

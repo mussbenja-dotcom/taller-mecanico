@@ -22,3 +22,12 @@ async def link_orden(orden_id: int, sesion: AsyncSession = Depends(obtener_sesio
     if "error" in r:
         raise HTTPException(404, r["error"])
     return r
+
+
+@router.get("/reposicion/{repuesto_id}")
+async def link_reposicion(repuesto_id: int, sesion: AsyncSession = Depends(obtener_sesion)):
+    """Arma el mensaje de reposición al proveedor de un repuesto."""
+    r = await ServicioWhatsApp.link_reposicion(sesion, repuesto_id)
+    if "error" in r:
+        raise HTTPException(404, r["error"])
+    return r

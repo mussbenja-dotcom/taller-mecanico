@@ -122,3 +122,37 @@ class ServicioWhatsApp:
             "telefono": telefono or None,
             "tiene_telefono": bool(telefono),
         }
+
+    @staticmethod
+    async def link_reposicion(sesion: AsyncSession, repuesto_id: int) -> dict:
+        """
+        Arma un mensaje de WhatsApp para pedir reposición de un repuesto a su
+        proveedor. Devuelve el link wa.me con el teléfono del proveedor.
+        """
+        from app.modelos import Repuesto, Proveedor
+        rep = await sesion.get(Repuesto, repuesto_id)
+        if not rep:
+            return {"error": "Repuesto no encontrado"}
+        if not rep.proveedor_id:
+            return {"error": "El repuesto no tiene proveedor asignado"}
+        prov = await sesion.get(Proveedor, rep.proveedor_id)
+        if not prov:
+            return {"error": "Proveedor no encontrado"}
+
+        # cantidad sugerida: reponer al menos hasta el mínimo (o 1)
+        faltan = max(1, (rep.minimo or 1) - rep.cantidad)
+        codigo = f" (código {rep.codigo})" if rep.codigo else ""
+        mensaje = (
+            f"Hola {prov.nombre}, necesitamos reponer *{rep.nombre}*{codigo}. "
+            f"¿Tenés disponibles unas {faltan} unidades y a qué precio? Gracias."
+        )
+        telefono = _solo_digitos(prov.telefono)
+        if telefono:
+            link = f"https://wa.me/{telefono}?text={quote(mensaje)}"
+        else:
+            link = f"https://wa.me/?text={quote(mensaje)}"
+        return {
+            "link": link, "mensaje": mensaje,
+            "telefono": telefono or None, "tiene_telefono": bool(telefono),
+            "proveedor": prov.nombre,
+        }

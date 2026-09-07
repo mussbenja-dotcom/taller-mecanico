@@ -56,10 +56,10 @@ async def main():
                                json={"estado": "cobrada"})).json()
         print("orden cobrada. estado:", orden["estado"])
 
-        # verificar que NO se puede borrar (no existe el endpoint)
+        # ahora SÍ existe el endpoint DELETE, pero requiere admin (sin token = 401)
         r = await c.delete(f"/api/ordenes/{orden['id']}")
-        print("intento de borrar orden -> status:", r.status_code, "(esperado 405, no existe)")
-        assert r.status_code == 405
+        print("intento de borrar orden sin token -> status:", r.status_code, "(esperado 401)")
+        assert r.status_code == 401
 
         # borrar el presupuesto SÍ se puede, y la orden sigue viva
         r = await c.delete(f"/api/presupuestos/{presu['id']}")

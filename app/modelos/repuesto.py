@@ -19,13 +19,23 @@ class Repuesto(Base):
     __tablename__ = "repuestos"
     __table_args__ = (
         CheckConstraint("cantidad >= 0", name="ck_cantidad_no_negativa"),
+        CheckConstraint("reservado >= 0", name="ck_reservado_no_negativo"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
     codigo: Mapped[str | None] = mapped_column(String(60), index=True)  # SKU / código interno
     cantidad: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # unidades reservadas por presupuestos/órdenes pendientes (Etapa B).
+    # disponible = cantidad - reservado (se calcula al vuelo, no se guarda).
+    reservado: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     minimo: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # compatibilidad opcional (Etapa C). Si están vacíos, el repuesto sirve para
+    # cualquier auto. Si tienen valor, se priorizan para ese auto en la búsqueda.
+    marca_compatible: Mapped[str | None] = mapped_column(String(60))
+    modelo_compatible: Mapped[str | None] = mapped_column(String(60))
+    # proveedor habitual del repuesto (Etapa D), para el disparador de compra.
+    proveedor_id: Mapped[int | None] = mapped_column(Integer)
     precio: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
     notas: Mapped[str | None] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

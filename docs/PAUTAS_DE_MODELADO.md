@@ -285,3 +285,154 @@ Endpoints nuevos:
 
 Los servicios ganaron un método `listar_todos` que incluye datos del auto y
 cliente en la respuesta.
+
+---
+
+## 12. Rebranding a "Dodorico Mecánica"
+
+Se reemplazó "TallerPro" por "Dodorico Mecánica" en todo lo visible: título de
+la pestaña, logo del sidebar, barra del celular, login y título de la API
+(app/main.py). Los nombres técnicos internos (tablas, variables, rutas) NO se
+tocaron para no romper nada.
+
+---
+
+## 13. Etapa A — Estado "En Proceso", validación de stock, borrado con rol y auditoría
+
+### Estados de la orden
+Ahora son cuatro: ESTADOS_ORDEN = ("pendiente", "en_proceso", "finalizada", "cobrada").
+Flujo: Pendiente → En Proceso → Finalizada → Cobrada.
+
+### Validación de stock (ServicioOrden.cambiar_estado)
+- Al pasar de "pendiente" a "en_proceso": por cada ítem repuesto sin reserva
+  previa, se reserva el stock en el momento (lo que valida disponibilidad). Si
+  no alcanza, HTTPException(400) con el detalle del repuesto que falta.
+- Al finalizar: se consume el stock (baja cantidad Y reservado a la vez).
+
+### Auditoría
+- Modelo LogAccion (app/modelos/log_accion.py): usuario, accion, detalle, creado_en.
+- ServicioLog.registrar(...) (sin commit propio, entra en la transacción del que llama).
+
+### Rol REAL en el backend (¡importante!)
+- Hasta ahora el control de rol vivía solo en el frontend (esconder botones).
+- Se agregó requiere_rol("admin") en app/nucleo/auth.py: una dependencia de
+  FastAPI que lee el header "Authorization: Bearer <token>", valida el token y
+  devuelve 401/403 según corresponda. El frontend manda el token en ese header.
+
+### Borrado de órdenes (DELETE /api/ordenes/{id})
+- Solo admin (Depends(requiere_rol("admin"))), solo si la orden está pendiente
+  (si no, 400). Libera las reservas de los ítems y registra la baja en LogAccion.
+- Es el ÚNICO lugar con botón de eliminar orden (en la vista general de Órdenes),
+  visible solo para admin y solo en órdenes pendientes.
+
+---
+
+## 14. Etapa B — Reserva de stock (físico / reservado / disponible)
+
+### Modelo
+- Repuesto ganó el campo 'reservado' (INTEGER, default 0, CheckConstraint >= 0).
+- disponible = cantidad - reservado (calculado al vuelo en _armar, como stock_bajo).
+- OrdenItem ganó el flag 'reservado' (bool): marca si ese ítem ya tiene su reserva.
+
+### Servicio (ServicioRepuesto)
+- reservar(sesion, repuesto_id, cantidad): sube 'reservado'. Falla con 400 si
+  disponible < cantidad. Sin commit propio.
+- liberar(...): baja 'reservado'. Sin commit propio.
+- descontar(..., desde_reserva=False): baja 'cantidad'; si desde_reserva=True,
+  también baja 'reservado' (la reserva se convierte en consumo real).
+- Los tres releen el repuesto con with_for_update=True (bloqueo de fila) para
+  control de concurrencia: dos órdenes no pueden reservar las mismas unidades.
+
+### Flujo de reservas
+- Crear orden con ítem repuesto → reserva (si no hay stock, se agrega sin reserva).
+- Finalizar orden → consume la reserva (no queda "reservado" fantasma).
+- Borrar orden pendiente → libera las reservas de sus ítems.
+
+### Migración
+- Columnas nuevas agregadas a la migración automática de main.py:
+  repuestos.reservado y orden_items.reservado (aditivas, no borran datos).
+
+### Pendiente (próximas etapas)
+- Etapa C: buscador predictivo también en presupuestos + compatibilidad marca/modelo.
+- Etapa D: proveedores + modal de faltante + disparador de compra por WhatsApp.
+
+---
+
+## 15. Etapa C — Buscador predictivo en presupuestos + compatibilidad
+
+### Buscador predictivo unificado
+- Antes el buscador con autocompletado solo existía en Órdenes. Ahora también
+  en Presupuestos, usando funciones genéricas (buscarRepPredictivoGen,
+  elegirRepBuscadoGen) parametrizadas por el arreglo destino (itemsTmp o
+  itemsOrdTmp) y el prefijo del contenedor de sugerencias.
+- PresupuestoItem ganó repuesto_id (igual que OrdenItem), y el esquema y
+  _armar_respuesta del presupuesto lo exponen.
+
+### Compatibilidad marca/modelo
+- Repuesto ganó marca_compatible y modelo_compatible (texto libre opcional).
+  Si están vacíos, el repuesto sirve para cualquier auto.
+- ServicioRepuesto.listar acepta marca/modelo: los repuestos compatibles con
+  ese auto se listan PRIMERO (no se excluyen los demás). Cada repuesto sale con
+  un flag "compatible".
+- El frontend pasa la marca/modelo del auto activo (autosActivos) a la búsqueda,
+  y muestra una etiqueta azul "✓ compatible" en los que matchean.
+- El form de repuesto (stock) permite cargar la marca/modelo compatible.
+
+### Conversión presupuesto → orden
+- crear_desde_presupuesto ahora COPIA el repuesto_id de cada ítem (antes lo
+  perdía) y RESERVA el stock igual que ServicioOrden.crear (mantiene la lógica
+  de Etapa B: si no hay stock, se agrega sin reserva).
+
+### Nota de diseño sobre reservas
+- El presupuesto NO reserva stock (es una cotización). La reserva ocurre cuando
+  se crea la orden (directa o desde presupuesto). Así se evita la doble reserva
+  y el "reservado fantasma" si un presupuesto nunca se convierte en orden.
+
+### Migración
+- Columnas nuevas en la migración automática: repuestos.marca_compatible,
+  repuestos.modelo_compatible, presupuesto_items.repuesto_id (todas aditivas).
+
+### Pendiente
+- Etapa D: proveedores + modal de faltante + disparador de compra por WhatsApp.
+
+---
+
+## 16. Etapa D — Proveedores + modal de faltante + disparador de compra
+
+### Proveedores (entidad nueva, receta completa)
+- Modelo Proveedor (app/modelos/proveedor.py): id, nombre, telefono, notas, timestamps.
+- Esquema, ServicioProveedor (CRUD), proveedor_controlador.py (CRUD),
+  registrado en main.py. Rutas: /api/proveedores.
+- Sección "Proveedores" en el menú (solo admin) con CRUD desde el frontend.
+
+### Vínculo repuesto ↔ proveedor
+- Repuesto ganó proveedor_id (FK opcional). El form de repuesto (stock) tiene un
+  selector de proveedor. Expuesto en el esquema y en _armar.
+
+### Modal de faltante (reemplaza el confirm nativo)
+- Antes, elegir un repuesto sin stock usaba confirm(). Ahora abre una modal
+  propia (modalFaltante, mismo patrón visual que modalQR) que muestra el nombre
+  del repuesto y dos/tres botones:
+  - "Agregar igual (sin stock)": comportamiento anterior.
+  - "Pedir a proveedor": SOLO visible si el repuesto tiene proveedor_id.
+  - "Cancelar".
+
+### Disparador de compra por WhatsApp
+- whatsapp_servicio.py ganó link_reposicion(sesion, repuesto_id): arma un
+  mensaje "Hola [proveedor], necesitamos reponer [repuesto] (código [x])..."
+  con cantidad sugerida (para llegar al mínimo) y devuelve el link wa.me con el
+  teléfono del proveedor. Mismo patrón de limpieza de teléfono que clientes.
+- Endpoint GET /api/whatsapp/reposicion/{repuesto_id}. Da 404 con mensaje claro
+  si el repuesto no tiene proveedor.
+- El botón "Pedir a proveedor" de la modal llama al endpoint y abre el link con
+  window.open (igual que enviarWhatsApp para presupuestos/órdenes).
+
+### Migración
+- Columna nueva en la migración automática: repuestos.proveedor_id (aditiva).
+- Tabla proveedores se crea sola con create_all.
+
+### Estado del proyecto
+Con las Etapas A, B, C y D completas, la Especificación de Requerimientos del
+módulo de Presupuestos/Órdenes/Stock quedó implementada: estados con validación,
+reserva de stock, buscador predictivo con compatibilidad, y proveedores con
+disparador de compra. Todo con rol validado en backend y auditoría de borrados.

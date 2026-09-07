@@ -1,14 +1,14 @@
 """
 CONTROLADOR de Orden de Trabajo.
 
-Fijate que NO hay endpoint DELETE: la orden queda grabada de forma permanente,
-tal como pidió el cliente. Solo se puede crear, ver, editar (si no está cobrada)
-y cambiar de estado.
+La orden NO se puede borrar salvo que esté en estado 'pendiente' Y lo haga un
+usuario admin (regla de negocio + auditoría). El resto queda grabado permanente.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.nucleo.base_datos import obtener_sesion
+from app.nucleo.auth import requiere_rol, _extraer_token, rol_de_token
 from app.servicios.orden_servicio import ServicioOrden
 from app.servicios.auto_servicio import ServicioAuto
 from app.esquemas.orden import (
@@ -72,3 +72,22 @@ async def cambiar_estado(
     if not o:
         raise HTTPException(404, "Orden no encontrada")
     return await ServicioOrden.cambiar_estado(sesion, o, datos.estado)
+
+
+@router.delete("/ordenes/{orden_id}", status_code=204)
+async def borrar(
+    orden_id: int,
+    authorization: str | None = Header(default=None),
+    _rol: str = Depends(requiere_rol("admin")),   # solo admin (valida en backend)
+    sesion: AsyncSession = Depends(obtener_sesion),
+):
+    """
+    Borra una orden. Solo admin, solo si está pendiente. Queda registrado en
+    el log de auditoría (con el usuario/rol que la borró).
+    """
+    o = await ServicioOrden.obtener(sesion, orden_id)
+    if not o:
+        raise HTTPException(404, "Orden no encontrada")
+    # usar el rol como identificador de usuario para el log (por ahora)
+    usuario = rol_de_token(_extraer_token(authorization)) or "desconocido"
+    await ServicioOrden.borrar(sesion, o, usuario)

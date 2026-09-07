@@ -37,6 +37,7 @@ from app.controladores import (
     repuesto_controlador, whatsapp_controlador,
     metricas_controlador, historial_controlador,
     auth_controlador, ia_controlador,
+    proveedor_controlador,
 )
 
 
@@ -60,6 +61,14 @@ def _migrar_columnas_faltantes(sync_conn):
     # columnas que fueron agregadas después de la creación inicial
     nuevas = {
         "autos": [("nota_qr", "TEXT")],
+        "repuestos": [
+            ("reservado", "INTEGER DEFAULT 0 NOT NULL"),
+            ("marca_compatible", "VARCHAR(60)"),
+            ("modelo_compatible", "VARCHAR(60)"),
+            ("proveedor_id", "INTEGER"),
+        ],
+        "orden_items": [("reservado", "BOOLEAN DEFAULT FALSE NOT NULL")],
+        "presupuesto_items": [("repuesto_id", "INTEGER")],
     }
     for tabla, columnas in nuevas.items():
         if tabla not in tablas:
@@ -98,6 +107,7 @@ app.include_router(metricas_controlador.router)
 app.include_router(historial_controlador.router)
 app.include_router(auth_controlador.router)
 app.include_router(ia_controlador.router)
+app.include_router(proveedor_controlador.router)
 
 
 @app.get("/api/salud")

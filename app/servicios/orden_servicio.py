@@ -96,7 +96,17 @@ class ServicioOrden:
             auto_id=datos.auto_id, descripcion=datos.descripcion, notas=datos.notas
         )
         for it in datos.items:
-            orden.items.append(OrdenItem(**it.model_dump()))
+            item = OrdenItem(**it.model_dump())
+            # si el ítem está vinculado a un repuesto, reservar su stock
+            if item.es_repuesto and item.repuesto_id:
+                try:
+                    await ServicioRepuesto.reservar(sesion, item.repuesto_id, int(item.cantidad))
+                    item.reservado = True
+                except HTTPException:
+                    # sin stock disponible: se agrega igual pero sin reserva
+                    # (el usuario ya confirmó agregarlo sin stock en el frontend)
+                    item.reservado = False
+            orden.items.append(item)
         sesion.add(orden)
         await sesion.commit()
         o = await ServicioOrden.obtener(sesion, orden.id)
@@ -122,10 +132,19 @@ class ServicioOrden:
             notas=presu.notas,
         )
         for it in presu.items:
-            orden.items.append(OrdenItem(
+            item = OrdenItem(
                 descripcion=it.descripcion, cantidad=it.cantidad,
                 precio_unitario=it.precio_unitario, es_repuesto=it.es_repuesto,
-            ))
+                repuesto_id=it.repuesto_id,
+            )
+            # reservar stock igual que en crear (si no hay, se agrega sin reserva)
+            if item.es_repuesto and item.repuesto_id:
+                try:
+                    await ServicioRepuesto.reservar(sesion, item.repuesto_id, int(item.cantidad))
+                    item.reservado = True
+                except HTTPException:
+                    item.reservado = False
+            orden.items.append(item)
         sesion.add(orden)
         await sesion.commit()
         o = await ServicioOrden.obtener(sesion, orden.id)
@@ -157,16 +176,28 @@ class ServicioOrden:
         if nuevo_estado not in ESTADOS_ORDEN:
             raise HTTPException(400, f"Estado inválido. Válidos: {', '.join(ESTADOS_ORDEN)}")
 
-        # Al finalizar por primera vez: se registra el momento Y se descuenta
-        # el stock de cada ítem que sea repuesto y esté vinculado (repuesto_id).
-        # Es idempotente: solo entra cuando finalizada_en estaba vacío, así que
-        # nunca se descuenta dos veces la misma orden.
+        # Al pasar a "en_proceso": el vehículo entra al taller y empieza el trabajo.
+        # Se valida que haya stock suficiente de cada repuesto. Si un ítem NO tenía
+        # reserva previa (orden vieja o ítem agregado suelto), se comprueba y reserva
+        # el stock en el momento. Si no alcanza, se corta con 400 y el detalle.
+        if nuevo_estado == "en_proceso" and orden.estado == "pendiente":
+            for it in orden.items:
+                if it.es_repuesto and it.repuesto_id and not it.reservado:
+                    # el ítem no tenía reserva previa: reservar ahora (valida stock)
+                    await ServicioRepuesto.reservar(
+                        sesion, it.repuesto_id, int(it.cantidad)
+                    )
+                    it.reservado = True
+
+        # Al finalizar por primera vez: se registra el momento Y se consume el stock
+        # (se descuenta de cantidad y de reservado a la vez). Idempotente.
         if nuevo_estado == "finalizada" and orden.finalizada_en is None:
             orden.finalizada_en = datetime.now(timezone.utc)
             for it in orden.items:
                 if it.es_repuesto and it.repuesto_id:
                     await ServicioRepuesto.descontar(
-                        sesion, it.repuesto_id, int(it.cantidad)
+                        sesion, it.repuesto_id, int(it.cantidad),
+                        desde_reserva=bool(it.reservado),
                     )
 
         orden.estado = nuevo_estado
@@ -174,4 +205,22 @@ class ServicioOrden:
         o = await ServicioOrden.obtener(sesion, orden.id)
         return _armar_respuesta(o)
 
-    # OJO: no hay método 'borrar'. La orden queda grabada de forma permanente.
+    @staticmethod
+    async def borrar(sesion: AsyncSession, orden: OrdenTrabajo, usuario: str | None) -> None:
+        """
+        Borra una orden SOLO si está pendiente. Libera las reservas de sus ítems
+        y registra la baja en el log de auditoría. El control de rol (solo admin)
+        se hace en el controlador con la dependencia requiere_rol.
+        """
+        from app.servicios.log_servicio import ServicioLog
+        if orden.estado != "pendiente":
+            raise HTTPException(400, "Solo se pueden eliminar órdenes en estado pendiente.")
+        # liberar reservas de los ítems antes de borrar
+        for it in orden.items:
+            if it.es_repuesto and it.repuesto_id and it.reservado:
+                await ServicioRepuesto.liberar(sesion, it.repuesto_id, int(it.cantidad))
+        await ServicioLog.registrar(
+            sesion, usuario, "borrar_orden", f"Orden #{orden.id} ({orden.descripcion or 's/desc'})"
+        )
+        await sesion.delete(orden)
+        await sesion.commit()

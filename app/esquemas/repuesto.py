@@ -10,6 +10,9 @@ class RepuestoBase(BaseModel):
     precio: Decimal = Decimal(0)
     cantidad: int = 0
     minimo: int = 1
+    marca_compatible: str | None = None
+    modelo_compatible: str | None = None
+    proveedor_id: int | None = None
 
 
 class RepuestoCrear(RepuestoBase):
@@ -22,6 +25,9 @@ class RepuestoActualizar(BaseModel):
     precio: Decimal | None = None
     cantidad: int | None = None
     minimo: int | None = None
+    marca_compatible: str | None = None
+    modelo_compatible: str | None = None
+    proveedor_id: int | None = None
 
 
 class RepuestoAjustarStock(BaseModel):
@@ -32,6 +38,9 @@ class RepuestoAjustarStock(BaseModel):
 class RepuestoRespuesta(RepuestoBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    stock_bajo: bool = False  # se calcula: cantidad <= minimo
+    reservado: int = 0                 # unidades reservadas
+    disponible: int = 0               # cantidad - reservado (calculado)
+    stock_bajo: bool = False          # se calcula: cantidad <= minimo
+    compatible: bool = False          # si matchea la marca/modelo del auto consultado
     creado_en: datetime
     actualizado_en: datetime

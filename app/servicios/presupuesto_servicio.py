@@ -26,6 +26,7 @@ def _armar_respuesta(p: Presupuesto) -> dict:
             "cantidad": it.cantidad,
             "precio_unitario": it.precio_unitario,
             "es_repuesto": it.es_repuesto,
+            "repuesto_id": it.repuesto_id,
             "subtotal": subtotal,
         })
     return {
