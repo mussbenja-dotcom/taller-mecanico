@@ -641,7 +641,6 @@ async function buscarRepPredictivoGen(arrNombre, sugPrefix, i, autoId, texto){
   arr[i].descripcion = texto;
   arr[i].repuesto_id = null;
   const cont = document.getElementById(`${sugPrefix}-${i}`);
-  if(!texto || texto.length<1){ cont.classList.add("hidden"); return; }
   // pasar marca/modelo del auto para priorizar compatibles
   const auto = autosActivos[autoId] || {};
   let url = `/api/repuestos?q=${encodeURIComponent(texto)}`;
@@ -651,7 +650,12 @@ async function buscarRepPredictivoGen(arrNombre, sugPrefix, i, autoId, texto){
   _timerBusqueda = setTimeout(async ()=>{
     try{
       const lista = await api(url);
-      if(!lista.length){ cont.innerHTML='<div class="p-2 text-xs text-textMuted">Sin resultados</div>'; cont.classList.remove("hidden"); return; }
+      if(!lista.length){
+        cont.innerHTML = texto
+          ? '<div class="p-2 text-xs text-textMuted">Sin resultados para "'+texto+'"</div>'
+          : '<div class="p-2 text-xs text-textMuted">No hay repuestos cargados en el stock todavía.</div>';
+        cont.classList.remove("hidden"); return;
+      }
       cont.innerHTML = lista.map(r=>{
         const disp = r.disponible !== undefined ? r.disponible : r.cantidad;
         const sinStock = disp<=0;
@@ -790,14 +794,22 @@ function formRepHTML(r){
   const opcionesProv = `<option value="">— sin proveedor —</option>` +
     proveedoresCache.map(p=>`<option value="${p.id}" ${r?.proveedor_id==p.id?'selected':''}>${p.nombre}</option>`).join("");
   document.getElementById("formRepuestoCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-    <input id="r_nombre" class="input-premium col-span-2" placeholder="Nombre" value="${r?.nombre||''}">
-    <input id="r_codigo" class="input-premium" placeholder="Código/SKU" value="${r?.codigo||''}">
-    <input id="r_precio" class="input-premium" type="number" placeholder="Precio" value="${r?.precio||''}">
-    <input id="r_cantidad" class="input-premium" type="number" placeholder="Cantidad" value="${r?.cantidad??''}">
-    <input id="r_minimo" class="input-premium" type="number" placeholder="Mínimo (alerta)" value="${r?.minimo??1}">
-    <input id="r_marcacompat" class="input-premium" placeholder="Marca compatible (opcional)" value="${r?.marca_compatible||''}">
-    <input id="r_modelocompat" class="input-premium" placeholder="Modelo compatible (opcional)" value="${r?.modelo_compatible||''}">
-    <select id="r_proveedor" class="input-premium col-span-2">${opcionesProv}</select>
+    <div class="col-span-2"><label class="block text-xs text-textMuted mb-1">Nombre del repuesto</label>
+      <input id="r_nombre" class="input-premium w-full" placeholder="Ej: Pastillas de freno" value="${r?.nombre||''}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">Código / SKU</label>
+      <input id="r_codigo" class="input-premium w-full" placeholder="Ej: PF-1234" value="${r?.codigo||''}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">Precio</label>
+      <input id="r_precio" class="input-premium w-full" type="number" placeholder="Ej: 15000" value="${r?.precio||''}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">Cantidad</label>
+      <input id="r_cantidad" class="input-premium w-full" type="number" placeholder="Ej: 10" value="${r?.cantidad??''}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">Mínimo (alerta de stock bajo)</label>
+      <input id="r_minimo" class="input-premium w-full" type="number" placeholder="Ej: 3" value="${r?.minimo??1}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">Marca compatible (opcional)</label>
+      <input id="r_marcacompat" class="input-premium w-full" placeholder="Ej: Volkswagen" value="${r?.marca_compatible||''}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">Modelo compatible (opcional)</label>
+      <input id="r_modelocompat" class="input-premium w-full" placeholder="Ej: Up" value="${r?.modelo_compatible||''}"></div>
+    <div class="col-span-2"><label class="block text-xs text-textMuted mb-1">Proveedor</label>
+      <select id="r_proveedor" class="input-premium w-full">${opcionesProv}</select></div>
     <div class="col-span-2 flex justify-end gap-2"><button onclick="document.getElementById('formRepuestoCont').innerHTML=''" class="btn-premium text-sm border border-border">Cancelar</button>
       <button onclick="guardarRep(${r?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
 }
