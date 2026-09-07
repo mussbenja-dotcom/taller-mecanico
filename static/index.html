@@ -637,7 +637,9 @@ async function elegirRepBuscado(i, repId, sinStock){
 // ===== BUSCADOR PREDICTIVO GENÉRICO (presupuestos y órdenes) =====
 // arrNombre: 'itemsTmp' o 'itemsOrdTmp' | sugPrefix: id del contenedor de sugerencias
 async function buscarRepPredictivoGen(arrNombre, sugPrefix, i, autoId, texto){
-  const arr = window[arrNombre];
+  // obtener el array vivo (itemsTmp o itemsOrdTmp) de forma segura
+  const arr = (arrNombre === 'itemsTmp') ? itemsTmp : itemsOrdTmp;
+  if(!arr || !arr[i]) return;
   arr[i].descripcion = texto;
   arr[i].repuesto_id = null;
   const cont = document.getElementById(`${sugPrefix}-${i}`);
@@ -671,7 +673,8 @@ async function buscarRepPredictivoGen(arrNombre, sugPrefix, i, autoId, texto){
   }, 200);
 }
 async function elegirRepBuscadoGen(arrNombre, sugPrefix, i, repId, sinStock, repintar){
-  const arr = window[arrNombre];
+  const arr = (arrNombre === 'itemsTmp') ? itemsTmp : itemsOrdTmp;
+  if(!arr || !arr[i]) return;
   document.getElementById(`${sugPrefix}-${i}`).classList.add("hidden");
   const rep = await api(`/api/repuestos?q=`).then(l=>l.find(r=>r.id===repId));
   if(!rep) return;
