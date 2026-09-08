@@ -8,6 +8,7 @@ from app.modelos.orden import OrdenTrabajo, OrdenItem, ESTADOS_ORDEN
 from app.modelos.repuesto import Repuesto
 from app.modelos.log_accion import LogAccion
 from app.modelos.proveedor import Proveedor
+from app.modelos.compra import Compra
 
 __all__ = [
     "Cliente", "Auto",
@@ -16,4 +17,5 @@ __all__ = [
     "Repuesto",
     "LogAccion",
     "Proveedor",
+    "Compra",
 ]

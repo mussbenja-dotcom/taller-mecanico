@@ -236,6 +236,31 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
   </div>
 </div>
 
+<!-- MODAL REGISTRAR COMPRA -->
+<div id="modalCompra" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarCompra()">
+  <div class="bg-surface border border-border rounded-2xl p-6 max-w-sm w-full mx-4">
+    <h2 class="text-lg font-bold text-success mb-1"><i class="fa-solid fa-cart-shopping"></i> Registrar compra</h2>
+    <p class="text-textMuted text-sm mb-4"><span id="compraRepNombre" class="text-textMain font-semibold"></span></p>
+    <div class="space-y-3">
+      <div><label class="block text-xs text-textMuted mb-1">Fecha de compra</label>
+        <input id="compraFecha" type="date" class="input-premium w-full"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs text-textMuted mb-1">Cantidad comprada</label>
+          <input id="compraCantidad" type="number" class="input-premium w-full" placeholder="Ej: 10"></div>
+        <div><label class="block text-xs text-textMuted mb-1">Costo por unidad</label>
+          <input id="compraCosto" type="number" class="input-premium w-full" placeholder="Ej: 5000"></div>
+      </div>
+      <div><label class="block text-xs text-textMuted mb-1">Proveedor (opcional)</label>
+        <select id="compraProveedor" class="input-premium w-full"></select></div>
+      <p class="text-textMuted text-xs">Al guardar, la cantidad se suma al stock y queda registrada para las métricas de precios.</p>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="cerrarCompra()" class="btn-premium border border-border hover:bg-background">Cancelar</button>
+      <button onclick="guardarCompra()" class="btn-premium bg-success text-white">Guardar compra</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL FALTA DE STOCK -->
 <div id="modalFaltante" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarFaltante()">
   <div class="bg-surface border border-red-500/30 rounded-2xl p-6 max-w-sm w-full mx-4">
@@ -549,20 +574,31 @@ function formPresupuesto(autoId){
 }
 // buscador predictivo para PRESUPUESTOS (mismo comportamiento que órdenes)
 function pintaItems(autoId){
-  document.getElementById("np_items").innerHTML=itemsTmp.map((it,i)=>`<div class="mb-2 relative">
-    <div class="flex gap-1">
+  document.getElementById("np_items").innerHTML=itemsTmp.map((it,i)=>{
+    const sub = (parseFloat(it.cantidad)||0) * (parseFloat(it.precio_unitario)||0);
+    return `<div class="mb-2 relative">
+    <div class="flex gap-1 items-center">
       <div class="relative flex-1">
         <input class="input-premium w-full text-xs" placeholder="🔍 Buscar repuesto (código o nombre)..."
           value="${it.descripcion}" oninput="buscarRepPredictivoGen('itemsTmp','npsug',${i},${autoId},this.value)"
           onfocus="buscarRepPredictivoGen('itemsTmp','npsug',${i},${autoId},this.value)" autocomplete="off">
         <div id="npsug-${i}" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-lg max-h-48 overflow-y-auto shadow-lg"></div>
       </div>
-      <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsTmp[${i}].cantidad=this.value" title="Cantidad">
-      <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsTmp[${i}].precio_unitario=this.value" title="Precio">
+      <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsTmp[${i}].cantidad=this.value;actualizarSub('np',${i},'itemsTmp')" title="Cantidad">
+      <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsTmp[${i}].precio_unitario=this.value;actualizarSub('np',${i},'itemsTmp')" title="Precio unitario">
+      <span id="sub-np-${i}" class="text-xs text-success font-semibold w-24 text-right">${sub>0?'= '+plata(sub):''}</span>
       <button onclick="itemsTmp.splice(${i},1);pintaItems(${autoId})" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button>
     </div>
     ${it.repuesto_id ? `<div class="text-xs text-success mt-0.5">✓ Repuesto del stock vinculado</div>` : ''}
-  </div>`).join("");
+  </div>`;}).join("");
+}
+// actualiza el subtotal mostrado al vuelo cuando cambian cantidad o precio
+function actualizarSub(prefijo, i, arrNombre){
+  const arr = (arrNombre === 'itemsTmp') ? itemsTmp : itemsOrdTmp;
+  const it = arr[i]; if(!it) return;
+  const sub = (parseFloat(it.cantidad)||0) * (parseFloat(it.precio_unitario)||0);
+  const span = document.getElementById(`sub-${prefijo}-${i}`);
+  if(span) span.textContent = sub>0 ? '= '+plata(sub) : '';
 }
 async function guardarPresu(autoId){
   const items=itemsTmp.filter(it=>it.descripcion.trim()).map(it=>({...it,cantidad:parseFloat(it.cantidad)||1,precio_unitario:parseFloat(it.precio_unitario)||0,repuesto_id:it.repuesto_id||null}));
@@ -608,8 +644,10 @@ function formOrden(autoId){
   pintaItemsOrd();
 }
 function pintaItemsOrd(){
-  document.getElementById("no_items").innerHTML=itemsOrdTmp.map((it,i)=>`<div class="mb-2 relative">
-    <div class="flex gap-1">
+  document.getElementById("no_items").innerHTML=itemsOrdTmp.map((it,i)=>{
+    const sub = (parseFloat(it.cantidad)||0) * (parseFloat(it.precio_unitario)||0);
+    return `<div class="mb-2 relative">
+    <div class="flex gap-1 items-center">
       <div class="relative flex-1">
         <input class="input-premium w-full text-xs" placeholder="🔍 Buscar repuesto (código o nombre)..."
           value="${it.descripcion}"
@@ -618,12 +656,13 @@ function pintaItemsOrd(){
           autocomplete="off">
         <div id="sugerencias-${i}" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-lg max-h-48 overflow-y-auto shadow-lg"></div>
       </div>
-      <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsOrdTmp[${i}].cantidad=this.value" title="Cantidad">
-      <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsOrdTmp[${i}].precio_unitario=this.value" title="Precio">
+      <input class="input-premium w-14 text-xs" type="number" value="${it.cantidad}" oninput="itemsOrdTmp[${i}].cantidad=this.value;actualizarSub('no',${i},'itemsOrdTmp')" title="Cantidad">
+      <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsOrdTmp[${i}].precio_unitario=this.value;actualizarSub('no',${i},'itemsOrdTmp')" title="Precio unitario">
+      <span id="sub-no-${i}" class="text-xs text-success font-semibold w-24 text-right">${sub>0?'= '+plata(sub):''}</span>
       <button onclick="itemsOrdTmp.splice(${i},1);pintaItemsOrd()" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button>
     </div>
     ${it.repuesto_id ? `<div class="text-xs text-success mt-0.5">✓ Repuesto del stock vinculado</div>` : ''}
-  </div>`).join("");
+  </div>`;}).join("");
 }
 let _timerBusqueda=null;
 // buscador para ÓRDENES (delega en la función genérica)
@@ -787,7 +826,8 @@ async function cargarRepuestos(){
       <td class="text-textMuted">${r.codigo||'—'}</td>
       <td class="text-right"><button onclick="ajustar(${r.id},-1)" class="text-textMuted hover:text-red-400 px-1">−</button><b class="${r.stock_bajo?'text-red-400':''}">${r.cantidad}</b><button onclick="ajustar(${r.id},1)" class="text-textMuted hover:text-success px-1">+</button> <span class="text-textMuted text-xs">/ mín ${r.minimo}</span></td>
       <td class="text-right">${plata(r.precio)}</td>
-      <td class="text-right"><button onclick='editarRep(${JSON.stringify(r)})' class="text-textMuted hover:text-primary px-1"><i class="fa-solid fa-pen text-xs"></i></button>
+      <td class="text-right"><button onclick='abrirCompra(${JSON.stringify(r)})' class="text-textMuted hover:text-success px-1" title="Registrar compra"><i class="fa-solid fa-cart-shopping text-xs"></i></button>
+        <button onclick='editarRep(${JSON.stringify(r)})' class="text-textMuted hover:text-primary px-1"><i class="fa-solid fa-pen text-xs"></i></button>
         <button onclick="borrarRep(${r.id})" class="text-textMuted hover:text-red-400 px-1"><i class="fa-solid fa-trash text-xs"></i></button></td></tr>`).join("")}
     </tbody></table>`;
 }
@@ -845,8 +885,36 @@ function inicializarMetricas(){
 }
 async function cargarMetricas(){
   const m=await api(`/api/metricas/mes?anio=${val("metAnio")}&mes=${val("metMes")}`);
-  const bajos=m.repuestos_stock_bajo.map(r=>`<li>${r.nombre}: ${r.cantidad} (mín ${r.minimo})</li>`).join("");
   const tarjeta=(v,l,c)=>`<div class="bg-surface border border-border rounded-xl p-5 text-center"><div class="text-3xl font-bold ${c}">${v}</div><div class="text-textMuted text-xs uppercase mt-1">${l}</div></div>`;
+  // reporte de stock crítico (repuestos que llegaron o bajaron del mínimo)
+  let reporteCritico = '';
+  const criticos = m.repuestos_stock_bajo || [];
+  if(criticos.length){
+    const filas = criticos.map(r=>{
+      const sinStock = r.cantidad<=0;
+      const estado = sinStock
+        ? '<span class="badge-estado bg-red-500/20 text-red-400">SIN STOCK</span>'
+        : '<span class="badge-estado bg-amber-500/20 text-amber-400">crítico</span>';
+      const btnPedir = r.proveedor_id
+        ? `<button onclick="pedirReposicion(${r.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> Pedir</button>`
+        : '<span class="text-textMuted text-[10px]">sin proveedor</span>';
+      return `<tr class="border-b border-border/50">
+        <td class="py-2">${r.codigo?('<b>'+r.codigo+'</b> · '):''}${r.nombre}</td>
+        <td class="text-center">${estado}</td>
+        <td class="text-center"><b class="${sinStock?'text-red-400':'text-amber-400'}">${r.cantidad}</b> <span class="text-textMuted text-xs">/ mín ${r.minimo}</span></td>
+        <td class="text-center text-textMuted">${r.faltan>0?('faltan '+r.faltan):'—'}</td>
+        <td class="text-right">${btnPedir}</td></tr>`;
+    }).join("");
+    reporteCritico = `<div class="bg-surface border border-red-500/20 rounded-xl p-4 mt-4">
+      <b class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Stock crítico (${criticos.length})</b>
+      <p class="text-textMuted text-xs mt-1 mb-2">Repuestos que llegaron al mínimo o se quedaron sin stock. Reponé cuanto antes.</p>
+      <table class="w-full text-sm">
+        <thead><tr class="text-textMuted text-xs border-b border-border">
+          <th class="text-left py-1">Repuesto</th><th class="text-center">Estado</th><th class="text-center">Stock</th><th class="text-center">Falta</th><th></th></tr></thead>
+        <tbody>${filas}</tbody></table></div>`;
+  } else {
+    reporteCritico = '<div class="bg-success/5 border border-success/20 rounded-xl p-4 mt-4 text-success text-sm"><i class="fa-solid fa-circle-check"></i> Sin repuestos en stock crítico. Todo en orden.</div>';
+  }
   document.getElementById("contenidoMetricas").innerHTML=`
     <div class="bg-surface border border-border rounded-xl p-5 mb-4 text-textMain leading-relaxed">${m.resumen}</div>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -854,7 +922,45 @@ async function cargarMetricas(){
       ${tarjeta(m.ordenes_finalizadas,"Órdenes finalizadas","text-success")}
       ${tarjeta(m.ordenes_cobradas,"Órdenes cobradas","text-blue-400")}
       ${tarjeta(plata(m.total_facturado),"Facturado","text-success")}</div>
-    ${bajos?`<div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mt-4"><b class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Repuestos con stock bajo</b><ul class="mt-2 text-sm list-disc list-inside text-textMuted">${bajos}</ul></div>`:''}`;
+    ${reporteCritico}
+    <div id="reportePrecios"></div>`;
+  cargarEvolucionPrecios();
+}
+// reporte de evolución de precios de compra (qué repuestos más aumentaron)
+async function cargarEvolucionPrecios(){
+  let d;
+  try { d = await api("/api/metricas/precios"); } catch(e){ return; }
+  const cont = document.getElementById("reportePrecios");
+  if(!cont) return;
+  if(!d.aumentos || !d.aumentos.length){
+    cont.innerHTML = '<div class="bg-surface border border-border rounded-xl p-4 mt-4 text-textMuted text-sm"><i class="fa-solid fa-chart-line"></i> Todavía no hay suficientes compras registradas para comparar precios. Registrá compras (con fecha y costo) desde el Stock y acá vas a ver cuánto aumentó cada repuesto.</div>';
+    return;
+  }
+  const flechaColor = pct => pct>0 ? 'text-red-400' : (pct<0 ? 'text-success' : 'text-textMuted');
+  const flecha = pct => pct>0 ? '▲' : (pct<0 ? '▼' : '=');
+  const filas = d.aumentos.map(a=>`<tr class="border-b border-border/50">
+    <td class="py-2">${a.codigo?('<b>'+a.codigo+'</b> · '):''}${a.nombre}</td>
+    <td class="text-center text-textMuted">${plata(a.costo_inicial)}</td>
+    <td class="text-center">${plata(a.costo_actual)}</td>
+    <td class="text-right font-bold ${flechaColor(a.variacion_pct)}">${flecha(a.variacion_pct)} ${Math.abs(a.variacion_pct)}%</td></tr>`).join("");
+  cont.innerHTML = `<div class="bg-surface border border-border rounded-xl p-4 mt-4">
+    <b class="text-primary"><i class="fa-solid fa-chart-line"></i> Evolución de precios de compra</b>
+    <p class="text-textMuted text-xs mt-1 mb-2">Cuánto varió el costo de cada repuesto entre tu primera y última compra. Los que más aumentan son candidatos a comprar por cantidad o negociar precio.</p>
+    <table class="w-full text-sm">
+      <thead><tr class="text-textMuted text-xs border-b border-border">
+        <th class="text-left py-1">Repuesto</th><th class="text-center">1ra compra</th><th class="text-center">Última</th><th class="text-right">Variación</th></tr></thead>
+      <tbody>${filas}</tbody></table></div>`;
+}
+// pedir reposición al proveedor desde el reporte de stock crítico
+async function pedirReposicion(repuestoId){
+  try {
+    const r = await api(`/api/whatsapp/reposicion/${repuestoId}`);
+    window.open(r.link, "_blank");
+  } catch(e) {
+    let msg = "No se pudo generar el pedido.";
+    try { const err=JSON.parse(e.message); if(err.detail) msg=err.detail; } catch(_){}
+    alert("⚠ " + msg);
+  }
 }
 
 // ===== IA =====
@@ -941,6 +1047,36 @@ async function abrirEnClientePresu(autoId){
   abrirEnCliente(auto.cliente_id, autoId);
 }
 
+// ===== REGISTRAR COMPRA =====
+let _compraRepId=null;
+function abrirCompra(rep){
+  _compraRepId = rep.id;
+  document.getElementById("compraRepNombre").textContent = (rep.codigo?rep.codigo+' · ':'')+rep.nombre;
+  document.getElementById("compraFecha").value = new Date().toISOString().slice(0,10); // hoy por defecto
+  document.getElementById("compraCantidad").value = "";
+  document.getElementById("compraCosto").value = rep.precio || "";
+  // selector de proveedor (usa el proveedor del repuesto por defecto si tiene)
+  const opts = `<option value="">— sin proveedor —</option>` +
+    proveedoresCache.map(p=>`<option value="${p.id}" ${rep.proveedor_id==p.id?'selected':''}>${p.nombre}</option>`).join("");
+  document.getElementById("compraProveedor").innerHTML = opts;
+  const m=document.getElementById("modalCompra"); m.classList.remove("hidden"); m.classList.add("flex");
+}
+function cerrarCompra(){ const m=document.getElementById("modalCompra"); m.classList.add("hidden"); m.classList.remove("flex"); }
+async function guardarCompra(){
+  const fecha = document.getElementById("compraFecha").value;
+  const cantidad = parseInt(document.getElementById("compraCantidad").value);
+  const costo = parseFloat(document.getElementById("compraCosto").value);
+  const provSel = document.getElementById("compraProveedor").value;
+  if(!fecha){ alert("Poné la fecha de compra"); return; }
+  if(!cantidad || cantidad<=0){ alert("Poné una cantidad válida"); return; }
+  if(!costo || costo<=0){ alert("Poné el costo por unidad"); return; }
+  await api("/api/compras", {method:"POST", body:JSON.stringify({
+    repuesto_id: _compraRepId, fecha, cantidad, costo_unitario: costo,
+    proveedor_id: provSel ? parseInt(provSel) : null
+  })});
+  cerrarCompra(); cargarRepuestos(); actualizarAlertaStock();
+}
+
 // ===== PROVEEDORES =====
 async function cargarProveedores(){
   proveedoresCache = await api("/api/proveedores");
@@ -950,8 +1086,14 @@ async function cargarProveedores(){
     <div><div class="font-medium"><i class="fa-solid fa-truck text-primary"></i> ${p.nombre}</div>
       <div class="text-textMuted text-xs mt-0.5">${p.telefono?'<i class="fa-brands fa-whatsapp text-success"></i> '+p.telefono:'sin teléfono'}${p.notas?' · '+p.notas:''}</div></div>
     <div class="flex gap-1">
+      ${p.telefono?`<button onclick="whatsappProveedor('${(p.telefono||'').replace(/\D/g,'')}')" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>`:''}
       <button onclick='formProveedor(${JSON.stringify(p)})' class="btn-premium text-xs border border-border">Editar</button>
       <button onclick="borrarProveedor(${p.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20">Borrar</button></div></div>`).join("");
+}
+// abre WhatsApp directo con el proveedor (sin mensaje, solo el chat)
+function whatsappProveedor(telefono){
+  if(!telefono){ alert("Este proveedor no tiene teléfono cargado."); return; }
+  window.open(`https://wa.me/${telefono}`, "_blank");
 }
 function formProveedor(p){
   document.getElementById("formProveedorCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">

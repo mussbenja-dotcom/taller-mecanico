@@ -436,3 +436,37 @@ Con las Etapas A, B, C y D completas, la Especificación de Requerimientos del
 módulo de Presupuestos/Órdenes/Stock quedó implementada: estados con validación,
 reserva de stock, buscador predictivo con compatibilidad, y proveedores con
 disparador de compra. Todo con rol validado en backend y auditoría de borrados.
+
+---
+
+## 17. Módulo de Compras + métricas de evolución de precios
+
+### Modelo Compra (historial de compras)
+- app/modelos/compra.py: repuesto_id, proveedor_id (opcional), fecha, cantidad,
+  costo_unitario, creado_en. Cada compra es un registro histórico.
+- Registrado en __init__ y con esquema/servicio/controlador completos.
+
+### Registrar compra (suma stock)
+- ServicioCompra.registrar: guarda la compra Y suma la cantidad al stock del
+  repuesto (with_for_update para concurrencia), todo en una transacción.
+- Convive con el +/- manual: el +/- es para ajustes rápidos sin costo; registrar
+  compra es la forma "buena" de reponer (con fecha, costo y proveedor).
+- Frontend: botón de carrito en cada fila del stock abre la modal de compra
+  (fecha por defecto hoy, cantidad, costo unitario, proveedor pre-seleccionado
+  del repuesto). Endpoint POST /api/compras.
+
+### Métricas de evolución de precios
+- ServicioMetricasCompras.evolucion_precios: por cada repuesto con 2+ compras,
+  calcula la variación de costo entre la primera y la última compra (monto y %),
+  ordenado por mayor aumento. También lista los más comprados.
+- Endpoint GET /api/metricas/precios.
+- Frontend: en Métricas, un reporte "Evolución de precios de compra" que muestra
+  1ra compra, última, y variación % con flecha (▲ rojo si subió, ▼ verde si bajó).
+  Sirve para decidir qué comprar por cantidad o negociar precio.
+
+### Por qué es útil (visión de negocio)
+- Saber qué repuesto más aumenta y más rota permite al dueño comprar por
+  cantidad o pelear el precio antes de una suba. Es una métrica accionable.
+
+### Nota
+- La tabla compras se crea sola con create_all (no requiere migración de columnas).

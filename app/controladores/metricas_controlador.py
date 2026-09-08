@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.nucleo.base_datos import obtener_sesion
-from app.servicios.metricas_servicio import ServicioMetricas
+from app.servicios.metricas_servicio import ServicioMetricas, ServicioMetricasCompras
 
 router = APIRouter(prefix="/api/metricas", tags=["metricas"])
 
@@ -19,3 +19,9 @@ async def resumen_mes(
     return await ServicioMetricas.resumen_mes(
         sesion, anio or ahora.year, mes or ahora.month
     )
+
+
+@router.get("/precios")
+async def evolucion_precios(sesion: AsyncSession = Depends(obtener_sesion)):
+    """Evolución de costos de compra: qué repuestos más aumentaron y más se compran."""
+    return await ServicioMetricasCompras.evolucion_precios(sesion)

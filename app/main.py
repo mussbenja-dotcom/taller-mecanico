@@ -37,7 +37,7 @@ from app.controladores import (
     repuesto_controlador, whatsapp_controlador,
     metricas_controlador, historial_controlador,
     auth_controlador, ia_controlador,
-    proveedor_controlador,
+    proveedor_controlador, compra_controlador,
 )
 
 
@@ -108,6 +108,7 @@ app.include_router(historial_controlador.router)
 app.include_router(auth_controlador.router)
 app.include_router(ia_controlador.router)
 app.include_router(proveedor_controlador.router)
+app.include_router(compra_controlador.router)
 
 
 @app.get("/api/salud")
