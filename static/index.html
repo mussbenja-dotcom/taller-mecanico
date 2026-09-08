@@ -63,6 +63,8 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <a onclick="irA('ordenes')" class="nav-item" data-target="ordenes" data-rol="todos"><i class="fa-solid fa-clipboard-list w-5 text-center"></i> Órdenes</a>
     <a onclick="irA('stock')" class="nav-item" data-target="stock" data-rol="admin"><i class="fa-solid fa-box-open w-5 text-center"></i> Stock <span id="alertaStock" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 hidden"></span></a>
     <a onclick="irA('proveedores')" class="nav-item" data-target="proveedores" data-rol="admin"><i class="fa-solid fa-truck w-5 text-center"></i> Proveedores</a>
+    <a onclick="irA('usuarios')" class="nav-item" data-target="usuarios" data-rol="admin"><i class="fa-solid fa-user-gear w-5 text-center"></i> Empleados</a>
+    <a onclick="irA('cuentacorriente')" class="nav-item" data-target="cuentacorriente" data-rol="admin"><i class="fa-solid fa-money-bill-wave w-5 text-center"></i> Cuenta corriente <span id="alertaDeuda" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 hidden"></span></a>
     <div id="grpAvanzado" class="mt-8 mb-3 px-2 flex items-center gap-2">
       <span class="text-xs font-semibold text-textMuted uppercase tracking-wider">Avanzado</span>
       <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30">IA</span>
@@ -156,7 +158,9 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
   <section id="view-stock" class="view-section h-full flex flex-col">
     <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Inventario</h1>
       <p class="text-sm text-textMuted mt-1">Controlá tus repuestos.</p></div>
-      <button onclick="formRepuesto()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nuevo repuesto</button></div>
+      <div class="flex gap-2">
+        <button onclick="abrirImportar()" class="btn-premium bg-surfaceHover border border-border hover:text-white"><i class="fa-solid fa-file-excel text-success"></i> Importar Excel</button>
+        <button onclick="formRepuesto()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nuevo repuesto</button></div></div>
     <div class="bg-surface border border-border rounded-xl flex-1 flex flex-col">
       <div class="p-4 border-b border-border flex gap-3">
         <div class="relative flex-1"><i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
@@ -175,6 +179,22 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
       <button onclick="formProveedor()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nuevo proveedor</button></div>
     <div id="formProveedorCont" class="px-1"></div>
     <div class="bg-surface border border-border rounded-xl flex-1 overflow-y-auto p-4" id="listaProveedores"></div>
+  </section>
+
+  <!-- EMPLEADOS (gestión de usuarios) -->
+  <section id="view-usuarios" class="view-section h-full flex flex-col">
+    <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Empleados</h1>
+      <p class="text-sm text-textMuted mt-1">Creá y gestioná las cuentas de tus empleados.</p></div>
+      <button onclick="formEmpleado()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nuevo empleado</button></div>
+    <div id="formEmpleadoCont" class="px-1"></div>
+    <div class="bg-surface border border-border rounded-xl flex-1 overflow-y-auto p-4" id="listaEmpleados"></div>
+  </section>
+
+  <!-- CUENTA CORRIENTE -->
+  <section id="view-cuentacorriente" class="view-section h-full flex flex-col">
+    <div class="mb-6"><h1 class="text-2xl font-bold">Cuenta corriente</h1>
+      <p class="text-sm text-textMuted mt-1">Órdenes con saldo pendiente: quién debe, cuánto y de qué vehículo.</p></div>
+    <div class="bg-surface border border-border rounded-xl flex-1 overflow-y-auto p-4" id="listaDeudores"></div>
   </section>
 
   <!-- MÉTRICAS -->
@@ -224,14 +244,59 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
       <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a Dodorico Mecánica</p>
     </div>
     <div class="space-y-4">
-      <div><label class="block text-sm text-textMuted mb-1.5">Usuario</label>
+      <div><label class="block text-sm text-textMuted mb-1.5">Email (dueño) o nombre (empleado)</label>
         <div class="relative"><i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
-          <input id="loginUser" type="text" autocomplete="off" placeholder="Usuario" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important"></div></div>
+          <input id="loginUser" type="text" autocomplete="off" placeholder="tucorreo@mail.com" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important"></div></div>
       <div><label class="block text-sm text-textMuted mb-1.5">Contraseña</label>
         <div class="relative"><i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-textMuted"></i>
           <input id="loginPass" type="password" class="input-premium w-full !pl-10" style="padding-left:2.5rem!important" onkeyup="if(event.key==='Enter')hacerLogin()"></div></div>
       <div id="loginError" class="hidden text-sm text-red-400"></div>
       <button onclick="hacerLogin()" class="w-full btn-premium bg-primary hover:bg-primaryHover text-white py-2.5">Ingresar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR EXCEL -->
+<div id="modalImportar" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarImportar()">
+  <div class="bg-surface border border-border rounded-2xl p-6 max-w-md w-full mx-4">
+    <h2 class="text-lg font-bold text-success mb-1"><i class="fa-solid fa-file-excel"></i> Importar stock desde Excel</h2>
+    <p class="text-textMuted text-sm mb-4">Subí un archivo <b>.xlsx</b> o <b>.csv</b> con tus repuestos.</p>
+    <div class="bg-background border border-border rounded-lg p-3 mb-4 text-xs text-textMuted">
+      <b class="text-textMain">La primera fila deben ser los títulos de columna:</b><br>
+      <code class="text-primary">nombre, codigo, cantidad, precio, minimo, marca, modelo</code><br><br>
+      • <b>nombre</b> es obligatorio.<br>
+      • Si el <b>código</b> ya existe, se actualiza ese repuesto (no se duplica).<br>
+      • <b>marca</b> y <b>modelo</b> son opcionales (compatibilidad).
+    </div>
+    <input id="archivoImportar" type="file" accept=".xlsx,.csv" class="input-premium w-full text-sm">
+    <div id="resultadoImportar" class="mt-3"></div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="cerrarImportar()" class="btn-premium border border-border hover:bg-background">Cerrar</button>
+      <button onclick="subirImportar()" id="btnSubirImportar" class="btn-premium bg-success text-white"><i class="fa-solid fa-upload"></i> Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REGISTRAR PAGO -->
+<div id="modalPago" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarPago()">
+  <div class="bg-surface border border-border rounded-2xl p-6 max-w-sm w-full mx-4">
+    <h2 class="text-lg font-bold text-success mb-1"><i class="fa-solid fa-money-bill"></i> Registrar pago</h2>
+    <div id="pagoResumen" class="text-textMuted text-sm mb-4"></div>
+    <div class="space-y-3">
+      <div><label class="block text-xs text-textMuted mb-1">Fecha del pago</label>
+        <input id="pagoFecha" type="date" class="input-premium w-full"></div>
+      <div><label class="block text-xs text-textMuted mb-1">Monto que abonó</label>
+        <input id="pagoMonto" type="number" class="input-premium w-full" placeholder="Ej: 50000"></div>
+      <div class="flex gap-2">
+        <button onclick="pagarTotal()" class="btn-premium text-xs border border-border flex-1">Pagó todo el saldo</button>
+        <button onclick="pagarMitad()" class="btn-premium text-xs border border-border flex-1">Pagó la mitad</button>
+      </div>
+      <div><label class="block text-xs text-textMuted mb-1">Nota (opcional)</label>
+        <input id="pagoNota" class="input-premium w-full" placeholder="Ej: seña, efectivo, transferencia"></div>
+    </div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="cerrarPago()" class="btn-premium border border-border hover:bg-background">Cancelar</button>
+      <button onclick="guardarPago()" class="btn-premium bg-success text-white">Guardar pago</button>
     </div>
   </div>
 </div>
@@ -310,6 +375,8 @@ function irA(vista) {
   if (vista==='ordenes') cargarOrdenesTodas();
   if (vista==='stock') cargarRepuestos();
   if (vista==='proveedores') cargarProveedores();
+  if (vista==='usuarios') cargarEmpleados();
+  if (vista==='cuentacorriente') cargarDeudores();
   if (vista==='metricas') inicializarMetricas();
   if (vista==='diagnostico') verificarIA();
 }
@@ -820,10 +887,11 @@ async function cargarRepuestos(){
   const cont=document.getElementById("listaRepuestos");
   if(!lista.length){cont.innerHTML='<p class="text-center text-textMuted py-8">Sin repuestos. Cargá el primero.</p>';return;}
   cont.innerHTML=`<table class="w-full text-sm"><thead><tr class="text-textMuted text-xs border-b border-border">
-    <th class="text-left py-2">Repuesto</th><th class="text-left">Código</th><th class="text-right">Stock</th><th class="text-right">Precio</th><th></th></tr></thead><tbody>
+    <th class="text-left py-2">Repuesto</th><th class="text-left">Código</th><th class="text-left">Compatible</th><th class="text-right">Stock</th><th class="text-right">Precio</th><th></th></tr></thead><tbody>
     ${lista.map(r=>`<tr class="border-b border-border/50 ${r.stock_bajo?'bg-red-500/5':''}">
       <td class="py-2">${r.nombre} ${r.stock_bajo?'<span class="badge-estado bg-red-500/20 text-red-400 ml-1">bajo</span>':''}</td>
       <td class="text-textMuted">${r.codigo||'—'}</td>
+      <td class="text-textMuted text-xs">${[r.marca_compatible, r.modelo_compatible].filter(Boolean).join(' ') || '<span class="opacity-50">todos</span>'}</td>
       <td class="text-right"><button onclick="ajustar(${r.id},-1)" class="text-textMuted hover:text-red-400 px-1">−</button><b class="${r.stock_bajo?'text-red-400':''}">${r.cantidad}</b><button onclick="ajustar(${r.id},1)" class="text-textMuted hover:text-success px-1">+</button> <span class="text-textMuted text-xs">/ mín ${r.minimo}</span></td>
       <td class="text-right">${plata(r.precio)}</td>
       <td class="text-right"><button onclick='abrirCompra(${JSON.stringify(r)})' class="text-textMuted hover:text-success px-1" title="Registrar compra"><i class="fa-solid fa-cart-shopping text-xs"></i></button>
@@ -1115,6 +1183,144 @@ async function borrarProveedor(id){
   await api(`/api/proveedores/${id}`,{method:"DELETE"}); cargarProveedores();
 }
 
+// modal de registrar pago
+let _pagoOrdenId=null, _pagoSaldo=0;
+function abrirPago(ordenId, total, pagado){
+  _pagoOrdenId = ordenId;
+  _pagoSaldo = Number(total) - Number(pagado);
+  document.getElementById("pagoResumen").innerHTML = `Saldo pendiente: <b class="text-amber-400">${plata(_pagoSaldo)}</b> (total ${plata(total)} · pagó ${plata(pagado)})`;
+  document.getElementById("pagoFecha").value = new Date().toISOString().slice(0,10);
+  document.getElementById("pagoMonto").value = "";
+  document.getElementById("pagoNota").value = "";
+  const m=document.getElementById("modalPago"); m.classList.remove("hidden"); m.classList.add("flex");
+}
+function cerrarPago(){ const m=document.getElementById("modalPago"); m.classList.add("hidden"); m.classList.remove("flex"); }
+function pagarTotal(){ document.getElementById("pagoMonto").value = _pagoSaldo; }
+function pagarMitad(){ document.getElementById("pagoMonto").value = Math.round(_pagoSaldo/2); }
+async function guardarPago(){
+  const fecha = document.getElementById("pagoFecha").value;
+  const monto = parseFloat(document.getElementById("pagoMonto").value);
+  const nota = val("pagoNota");
+  if(!fecha){ alert("Poné la fecha del pago"); return; }
+  if(!monto || monto<=0){ alert("Poné un monto válido"); return; }
+  await api("/api/pagos", {method:"POST", body:JSON.stringify({orden_id:_pagoOrdenId, fecha, monto, nota:nota||null})});
+  cerrarPago(); cargarDeudores(); actualizarAlertaDeuda();
+}
+
+// ===== IMPORTAR EXCEL =====
+function abrirImportar(){
+  document.getElementById("archivoImportar").value = "";
+  document.getElementById("resultadoImportar").innerHTML = "";
+  const m=document.getElementById("modalImportar"); m.classList.remove("hidden"); m.classList.add("flex");
+}
+function cerrarImportar(){ const m=document.getElementById("modalImportar"); m.classList.add("hidden"); m.classList.remove("flex"); }
+async function subirImportar(){
+  const input = document.getElementById("archivoImportar");
+  const res = document.getElementById("resultadoImportar");
+  if(!input.files.length){ res.innerHTML='<div class="text-amber-400 text-xs">Elegí un archivo primero.</div>'; return; }
+  const btn = document.getElementById("btnSubirImportar");
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Importando...';
+  const fd = new FormData();
+  fd.append("archivo", input.files[0]);
+  try {
+    // no usa api() porque es multipart (archivo), no JSON
+    const r = await fetch("/api/importar/stock", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token },  // sin Content-Type: lo pone el navegador
+      body: fd,
+    });
+    const data = await r.json();
+    if(!r.ok){ throw new Error(data.detail || "Error al importar"); }
+    let html = `<div class="bg-success/10 border border-success/20 rounded-lg p-3 text-sm text-success">
+      ✓ Importación lista: <b>${data.creados}</b> creados, <b>${data.actualizados}</b> actualizados (de ${data.total_filas} filas).</div>`;
+    if(data.errores && data.errores.length){
+      html += `<div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mt-2 text-xs text-amber-300">
+        <b>Avisos:</b><ul class="list-disc list-inside mt-1">${data.errores.map(e=>'<li>'+e+'</li>').join("")}</ul></div>`;
+    }
+    res.innerHTML = html;
+    cargarRepuestos(); actualizarAlertaStock();
+  } catch(e){
+    res.innerHTML = `<div class="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">⚠ ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-upload"></i> Importar';
+}
+
+// ===== CUENTA CORRIENTE =====
+async function cargarDeudores(){
+  const lista = await api("/api/pagos/deudores");
+  const cont = document.getElementById("listaDeudores");
+  if(!lista.length){ cont.innerHTML='<div class="text-center text-success py-8"><i class="fa-solid fa-circle-check"></i> Nadie debe plata. Todo cobrado.</div>'; return; }
+  const totalDeuda = lista.reduce((s,d)=>s+Number(d.saldo),0);
+  cont.innerHTML = `<div class="mb-3 text-sm text-textMuted">Total por cobrar: <b class="text-amber-400">${plata(totalDeuda)}</b> · ${lista.length} orden(es)</div>` +
+    lista.map(d=>`<div class="doc">
+      <div class="flex items-center justify-between">
+        <div><div class="font-medium">${d.cliente_nombre||'—'} <span class="badge-estado est-${d.estado} ml-1">${d.estado}</span></div>
+          <div class="text-textMuted text-xs mt-0.5">${d.descripcion||'Orden'} #${d.orden_id} · ${d.auto_desc||''} ${d.patente?'· '+d.patente:''}</div></div>
+        <div class="text-right"><div class="text-amber-400 font-bold">Debe ${plata(d.saldo)}</div>
+          <div class="text-textMuted text-xs">Total ${plata(d.total)} · Pagó ${plata(d.pagado)}</div></div>
+      </div>
+      <div class="flex gap-1 mt-2 flex-wrap">
+        <button onclick="abrirPago(${d.orden_id}, ${d.total}, ${d.pagado})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-solid fa-money-bill"></i> Registrar pago</button>
+        ${d.cliente_telefono?`<button onclick="window.open('https://wa.me/'+'${(d.cliente_telefono||'').replace(/\\D/g,'')}','_blank')" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> Recordar</button>`:''}
+      </div></div>`).join("");
+}
+async function actualizarAlertaDeuda(){
+  try {
+    const lista = await api("/api/pagos/deudores");
+    const b = document.getElementById("alertaDeuda");
+    if(b){ if(lista.length){ b.textContent=lista.length; b.classList.remove("hidden"); } else b.classList.add("hidden"); }
+  } catch(e){}
+}
+
+// ===== GESTIÓN DE EMPLEADOS (solo admin) =====
+function authHeader(){ return {"Authorization":"Bearer "+token}; }
+async function cargarEmpleados(){
+  let lista;
+  try { lista = await api("/api/usuarios/empleados", {headers: authHeader()}); }
+  catch(e){ document.getElementById("listaEmpleados").innerHTML='<p class="text-red-400 text-sm p-4">No se pudo cargar (¿sos admin?).</p>'; return; }
+  const cont=document.getElementById("listaEmpleados");
+  if(!lista.length){cont.innerHTML='<p class="text-center text-textMuted py-8">Sin empleados. Creá el primero.</p>';return;}
+  cont.innerHTML=lista.map(u=>`<div class="doc flex items-center justify-between">
+    <div><div class="font-medium"><i class="fa-solid fa-user text-primary"></i> ${u.nombre} ${u.activo?'':'<span class="badge-estado bg-red-500/20 text-red-400 ml-1">inactivo</span>'}</div>
+      <div class="text-textMuted text-xs mt-0.5">Usuario para ingresar: <b>${u.usuario}</b></div></div>
+    <div class="flex gap-1">
+      <button onclick='formEmpleado(${JSON.stringify(u)})' class="btn-premium text-xs border border-border">Editar</button>
+      <button onclick="borrarEmpleado(${u.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20">Borrar</button></div></div>`).join("");
+}
+function formEmpleado(u){
+  const esEdicion = !!u;
+  document.getElementById("formEmpleadoCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+    <div><label class="block text-xs text-textMuted mb-1">Nombre del empleado</label>
+      <input id="e_nombre" class="input-premium w-full" placeholder="Ej: Juan Pérez" value="${u?.nombre||''}"></div>
+    <div><label class="block text-xs text-textMuted mb-1">${esEdicion?'Nueva contraseña (dejar vacío = no cambiar)':'Contraseña'}</label>
+      <input id="e_password" type="text" class="input-premium w-full" placeholder="${esEdicion?'••••••':'Contraseña para el empleado'}"></div>
+    <p class="col-span-2 text-textMuted text-xs">El empleado ingresa con su <b>nombre</b> y esta contraseña. Solo verá Órdenes, Vehículos, Clientes y Diagnóstico IA (sin precios ni métricas).</p>
+    <div class="col-span-2 flex justify-end gap-2"><button onclick="document.getElementById('formEmpleadoCont').innerHTML=''" class="btn-premium text-sm border border-border">Cancelar</button>
+      <button onclick="guardarEmpleado(${u?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
+}
+async function guardarEmpleado(id){
+  const nombre=val("e_nombre"); const password=val("e_password");
+  if(!nombre){ alert("Poné el nombre del empleado"); return; }
+  try {
+    if(id){
+      const cuerpo={nombre}; if(password) cuerpo.password=password;
+      await api(`/api/usuarios/empleados/${id}`, {method:"PUT", headers:authHeader(), body:JSON.stringify(cuerpo)});
+    } else {
+      if(!password){ alert("Poné una contraseña para el empleado"); return; }
+      await api("/api/usuarios/empleados", {method:"POST", headers:authHeader(), body:JSON.stringify({nombre,password})});
+    }
+    document.getElementById("formEmpleadoCont").innerHTML=""; cargarEmpleados();
+  } catch(e){
+    let msg="No se pudo guardar."; try{const err=JSON.parse(e.message); if(err.detail)msg=err.detail;}catch(_){}
+    alert("⚠ "+msg);
+  }
+}
+async function borrarEmpleado(id){
+  if(!confirm("¿Borrar este empleado? No podrá ingresar más."))return;
+  await api(`/api/usuarios/empleados/${id}`, {method:"DELETE", headers:authHeader()});
+  cargarEmpleados();
+}
+
 // ===== arranque =====
 // Si NO hay sesión, obligar a iniciar sesión (no se ve nada hasta entrar).
 function verificarAcceso(){
@@ -1122,7 +1328,7 @@ function verificarAcceso(){
     // hay sesión: mostrar la app normalmente
     document.body.classList.remove("sin-sesion");
     pintarSesion(); aplicarRol();
-    cargarClientes(); actualizarAlertaStock();
+    cargarClientes(); actualizarAlertaStock(); actualizarAlertaDeuda();
   } else {
     // no hay sesión: ocultar todo y forzar login
     document.body.classList.add("sin-sesion");

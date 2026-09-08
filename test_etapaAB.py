@@ -8,10 +8,18 @@ from app import modelos  # noqa
 async def main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # crear el admin inicial (el lifespan no corre con ASGITransport)
+    from app.nucleo.base_datos import SesionLocal
+    from app.servicios.usuario_servicio import ServicioUsuario
+    async with SesionLocal() as s:
+        await ServicioUsuario.asegurar_admin_inicial(s)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         # login admin y empleado (para tokens)
-        tok_admin = (await c.post("/api/auth/login", json={"usuario":"admin","password":"taller2025"})).json()["token"]
+        # login admin (cuenta inicial por defecto) y crear un empleado para el test
+        tok_admin = (await c.post("/api/auth/login", json={"usuario":"admin@dodorico.com","password":"dodorico2025"})).json()["token"]
+        await c.post("/api/usuarios/empleados", json={"nombre":"empleado","password":"taller123"},
+                     headers={"Authorization":f"Bearer {tok_admin}"})
         tok_emp = (await c.post("/api/auth/login", json={"usuario":"empleado","password":"taller123"})).json()["token"]
 
         cli = (await c.post("/api/clientes", json={"nombre":"Test"})).json()

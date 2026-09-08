@@ -9,6 +9,8 @@ from app.modelos.repuesto import Repuesto
 from app.modelos.log_accion import LogAccion
 from app.modelos.proveedor import Proveedor
 from app.modelos.compra import Compra
+from app.modelos.usuario import Usuario
+from app.modelos.pago import Pago
 
 __all__ = [
     "Cliente", "Auto",
@@ -18,4 +20,6 @@ __all__ = [
     "LogAccion",
     "Proveedor",
     "Compra",
+    "Usuario",
+    "Pago",
 ]

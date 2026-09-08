@@ -38,6 +38,8 @@ from app.controladores import (
     metricas_controlador, historial_controlador,
     auth_controlador, ia_controlador,
     proveedor_controlador, compra_controlador,
+    usuario_controlador, pago_controlador,
+    importacion_controlador,
 )
 
 
@@ -49,6 +51,11 @@ async def ciclo_vida(app: FastAPI):
             # migración automática: agrega columnas nuevas si faltan
             # (así no hay que correr migrate.py a mano, ni en local ni en Render)
             await conn.run_sync(_migrar_columnas_faltantes)
+        # crear la cuenta admin inicial si no existe ninguna
+        from app.nucleo.base_datos import SesionLocal
+        from app.servicios.usuario_servicio import ServicioUsuario
+        async with SesionLocal() as sesion:
+            await ServicioUsuario.asegurar_admin_inicial(sesion)
     yield
 
 
@@ -109,6 +116,9 @@ app.include_router(auth_controlador.router)
 app.include_router(ia_controlador.router)
 app.include_router(proveedor_controlador.router)
 app.include_router(compra_controlador.router)
+app.include_router(usuario_controlador.router)
+app.include_router(pago_controlador.router)
+app.include_router(importacion_controlador.router)
 
 
 @app.get("/api/salud")

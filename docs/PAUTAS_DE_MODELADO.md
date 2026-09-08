@@ -470,3 +470,54 @@ disparador de compra. Todo con rol validado en backend y auditoría de borrados.
 
 ### Nota
 - La tabla compras se crea sola con create_all (no requiere migración de columnas).
+
+---
+
+## 18. Sistema de usuarios (login contra la base, bcrypt)
+
+- Modelo Usuario (usuario, nombre, password_hash, rol, activo). El admin entra
+  con email; los empleados con su nombre. Contraseñas hasheadas con bcrypt.
+- auth.py: hashear_password / verificar_password (bcrypt), tokens con usuario+rol.
+- ServicioUsuario: autenticar contra la base, CRUD de empleados,
+  asegurar_admin_inicial (crea el admin si no existe, con ADMIN_EMAIL/ADMIN_PASSWORD).
+- El seed del admin corre en el lifespan de main.py.
+- Controladores: auth (login/logout contra base), usuarios (CRUD empleados, solo admin).
+- Frontend: sección "Empleados" (solo admin) para crear/editar/borrar empleados;
+  login pide email (dueño) o nombre (empleado).
+- IMPORTANTE: reemplaza el login viejo de usuarios fijos. En Render configurar
+  ADMIN_EMAIL y ADMIN_PASSWORD. Los tests que usan ASGITransport deben llamar a
+  asegurar_admin_inicial en el setup (el lifespan no corre con ese transporte).
+
+## 19. Auto compatible en el inventario
+- La tabla de Stock muestra una columna "Compatible" con marca/modelo del repuesto
+  (o "todos" si no tiene). El dato ya existía (Etapa C), ahora se ve en la lista.
+
+## 20. Cuenta corriente (pagos y saldos)
+- Modelo Pago (orden_id, fecha, monto, nota). El saldo de una orden = total - suma de pagos.
+- ServicioPago: registrar, resumen_orden (total/pagado/saldo), deudores (órdenes
+  con saldo > 0, con cliente/auto/patente/teléfono).
+- Controlador /api/pagos: registrar, /orden/{id} (resumen), /deudores.
+- Frontend: sección "Cuenta corriente" (solo admin) que lista deudores con total
+  por cobrar, botón "Registrar pago" (modal con atajos "pagó todo"/"pagó la mitad")
+  y botón para recordar por WhatsApp. Contador de deudores en el menú.
+- Nota: el "recordatorio mensual automático" no se implementó como notificación
+  que llega sola (es otra etapa); en su lugar, los deudores se ven en la sección
+  y con el contador del menú.
+
+---
+
+## 21. Importar stock desde Excel / CSV
+
+- ServicioImportacion (app/servicios/importacion_servicio.py): lee .xlsx (openpyxl)
+  o .csv, detecta columnas por nombre con alias flexibles (nombre/descripcion,
+  codigo/sku, cantidad/stock, precio, minimo, marca, modelo).
+- Regla: si el 'codigo' ya existe, ACTUALIZA el repuesto; si no, lo CREA. Así
+  reimportar la misma planilla no duplica.
+- Devuelve resumen: creados, actualizados, total_filas y errores por fila
+  (ej: "Fila 5: falta el nombre").
+- Controlador POST /api/importar/stock (multipart, solo admin con requiere_rol).
+- Frontend: botón "Importar Excel" en Stock abre una modal con las instrucciones
+  del formato y un input de archivo. La subida usa fetch con FormData (no la
+  función api() de JSON) y manda el token en el header Authorization.
+- Dependencias nuevas: openpyxl (leer xlsx) y python-multipart (recibir archivos).
+- La carga manual ("+ Nuevo repuesto") sigue disponible: conviven las dos formas.
