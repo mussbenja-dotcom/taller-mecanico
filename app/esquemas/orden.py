@@ -56,5 +56,6 @@ class OrdenRespuesta(BaseModel):
     creado_en: datetime
     actualizado_en: datetime
     finalizada_en: datetime | None
+    entregada_en: datetime | None = None
     items: list[OrdenItemRespuesta] = []
     total: Decimal = Decimal(0)

@@ -2,15 +2,40 @@
 CONTROLADOR de Usuarios: el admin gestiona los empleados.
 Todos los endpoints requieren rol admin (validado en el backend).
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.nucleo.base_datos import obtener_sesion
-from app.nucleo.auth import requiere_rol
+from app.nucleo.auth import requiere_rol, _extraer_token, usuario_de_token, token_valido
 from app.servicios.usuario_servicio import ServicioUsuario
 from app.esquemas.usuario import EmpleadoCrear, EmpleadoActualizar, UsuarioRespuesta
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
+
+
+class CambiarPassword(BaseModel):
+    actual: str
+    nueva: str
+
+
+@router.post("/cambiar-password")
+async def cambiar_password(
+    datos: CambiarPassword,
+    authorization: str | None = Header(default=None),
+    sesion: AsyncSession = Depends(obtener_sesion),
+):
+    """Cualquier usuario logueado cambia su propia contraseña (verifica la actual)."""
+    token = _extraer_token(authorization)
+    if not token_valido(token):
+        raise HTTPException(401, "No autenticado")
+    if not datos.nueva or len(datos.nueva) < 4:
+        raise HTTPException(400, "La nueva contraseña debe tener al menos 4 caracteres")
+    usuario_login = usuario_de_token(token)
+    ok = await ServicioUsuario.cambiar_password_propia(sesion, usuario_login, datos.actual, datos.nueva)
+    if not ok:
+        raise HTTPException(400, "La contraseña actual no es correcta")
+    return {"ok": True}
 
 
 @router.get("/empleados", response_model=list[UsuarioRespuesta])

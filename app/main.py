@@ -39,7 +39,7 @@ from app.controladores import (
     auth_controlador, ia_controlador,
     proveedor_controlador, compra_controlador,
     usuario_controlador, pago_controlador,
-    importacion_controlador,
+    importacion_controlador, comprobante_controlador,
 )
 
 
@@ -75,6 +75,7 @@ def _migrar_columnas_faltantes(sync_conn):
             ("proveedor_id", "INTEGER"),
         ],
         "orden_items": [("reservado", "BOOLEAN DEFAULT FALSE NOT NULL")],
+        "ordenes_trabajo": [("entregada_en", "TIMESTAMP")],
         "presupuesto_items": [("repuesto_id", "INTEGER")],
     }
     for tabla, columnas in nuevas.items():
@@ -119,6 +120,7 @@ app.include_router(compra_controlador.router)
 app.include_router(usuario_controlador.router)
 app.include_router(pago_controlador.router)
 app.include_router(importacion_controlador.router)
+app.include_router(comprobante_controlador.router)
 
 
 @app.get("/api/salud")

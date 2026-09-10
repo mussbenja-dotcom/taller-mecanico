@@ -40,6 +40,8 @@ class OrdenTrabajo(Base):
     )
     # marca de tiempo del momento en que se finalizó (para métricas y para el stock)
     finalizada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # fecha en que se entregó el auto al cliente (Etapa entrega). La marca el taller.
+    entregada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     auto: Mapped["Auto"] = relationship()  # noqa: F821
     items: Mapped[list["OrdenItem"]] = relationship(

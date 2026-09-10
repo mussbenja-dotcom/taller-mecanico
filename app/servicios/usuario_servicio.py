@@ -70,6 +70,22 @@ class ServicioUsuario:
         await sesion.commit()
 
     @staticmethod
+    async def cambiar_password_propia(
+        sesion: AsyncSession, usuario_login: str, actual: str, nueva: str
+    ) -> bool:
+        """
+        Cambia la contraseña del usuario logueado, verificando la actual.
+        Devuelve True si se cambió, False si la contraseña actual no coincide.
+        """
+        res = await sesion.execute(select(Usuario).where(Usuario.usuario == usuario_login))
+        u = res.scalar_one_or_none()
+        if not u or not auth.verificar_password(actual, u.password_hash):
+            return False
+        u.password_hash = auth.hashear_password(nueva)
+        await sesion.commit()
+        return True
+
+    @staticmethod
     async def asegurar_admin_inicial(sesion: AsyncSession) -> None:
         """
         Crea la cuenta admin inicial si no existe ningún admin. Los valores salen

@@ -35,7 +35,7 @@ def _armar_respuesta(o: OrdenTrabajo) -> dict:
         "id": o.id, "auto_id": o.auto_id, "presupuesto_id": o.presupuesto_id,
         "descripcion": o.descripcion, "estado": o.estado, "notas": o.notas,
         "creado_en": o.creado_en, "actualizado_en": o.actualizado_en,
-        "finalizada_en": o.finalizada_en, "items": items, "total": total,
+        "finalizada_en": o.finalizada_en, "entregada_en": o.entregada_en, "items": items, "total": total,
     }
 
 
@@ -201,6 +201,19 @@ class ServicioOrden:
                     )
 
         orden.estado = nuevo_estado
+        await sesion.commit()
+        o = await ServicioOrden.obtener(sesion, orden.id)
+        return _armar_respuesta(o)
+
+    @staticmethod
+    async def marcar_entrega(sesion: AsyncSession, orden: OrdenTrabajo, fecha) -> dict:
+        """Registra la fecha en que se entregó el auto al cliente."""
+        from datetime import datetime as _dt, time as _time
+        if fecha is None:
+            orden.entregada_en = None
+        else:
+            # fecha viene como date; guardamos como datetime a mediodía
+            orden.entregada_en = _dt.combine(fecha, _time(12, 0))
         await sesion.commit()
         o = await ServicioOrden.obtener(sesion, orden.id)
         return _armar_respuesta(o)

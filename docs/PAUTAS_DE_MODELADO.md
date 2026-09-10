@@ -521,3 +521,41 @@ disparador de compra. Todo con rol validado en backend y auditoría de borrados.
   función api() de JSON) y manda el token en el header Authorization.
 - Dependencias nuevas: openpyxl (leer xlsx) y python-multipart (recibir archivos).
 - La carga manual ("+ Nuevo repuesto") sigue disponible: conviven las dos formas.
+
+---
+
+## 22. Comprobante PDF de la orden
+
+- ServicioComprobante (app/servicios/comprobante_servicio.py): genera con reportlab
+  un PDF con datos del taller, cliente, vehículo, detalle de ítems, total y —si
+  hay pagos— pagado y saldo. Es un comprobante PROPIO del taller, NO factura AFIP.
+- El nombre del taller sale de la variable NOMBRE_TALLER (default "Dodorico Mecánica").
+- Controlador GET /api/comprobante/orden/{id} devuelve el PDF (Response con
+  media_type application/pdf, Content-Disposition inline).
+- Frontend: botón "Comprobante" (icono PDF) en las órdenes de un auto, en la
+  cuenta corriente. Solo admin (tiene precios). verComprobante() abre el PDF en
+  pestaña nueva: se puede ver, descargar o compartir. Así el flujo real funciona:
+  se entrega el auto (orden finalizada), y cuando el taller quiere (ej: el 15)
+  genera el comprobante y lo envía; el pago se sigue por la cuenta corriente.
+- Dependencia nueva: reportlab.
+
+---
+
+## 23. Fecha de entrega + cambio de contraseña propia
+
+### Fecha de entrega del auto
+- OrdenTrabajo ganó entregada_en (datetime, opcional). La marca el taller cuando
+  el auto se entrega (puede ser cualquier día, no fijo).
+- Endpoint PATCH /api/ordenes/{id}/entrega con {fecha: "AAAA-MM-DD" | null}.
+- ServicioOrden.marcar_entrega la guarda (a mediodía para evitar líos de zona horaria).
+- Aparece en el comprobante PDF ("Entregado: dd/mm/aaaa").
+- Frontend: botón "Marcar entrega" en las órdenes (solo admin); si ya está
+  entregada muestra "Entregado dd/mm" en verde. Migración: ordenes_trabajo.entregada_en.
+
+### Cambio de contraseña propia
+- ServicioUsuario.cambiar_password_propia: verifica la actual y setea la nueva (bcrypt).
+- Endpoint POST /api/usuarios/cambiar-password {actual, nueva} (cualquier usuario
+  logueado, identificado por su token). Valida largo mínimo 4.
+- Frontend: botón "Cambiar mi contraseña" arriba de "Cerrar sesión", con modal
+  (actual + nueva + repetir). Permite entregar el sistema con una contraseña
+  predeterminada y que el dueño la cambie apenas entra.

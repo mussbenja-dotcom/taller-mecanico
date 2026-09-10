@@ -91,3 +91,23 @@ async def borrar(
     # usar el rol como identificador de usuario para el log (por ahora)
     usuario = rol_de_token(_extraer_token(authorization)) or "desconocido"
     await ServicioOrden.borrar(sesion, o, usuario)
+
+
+from datetime import date as _date
+from pydantic import BaseModel as _BaseModel
+
+
+class MarcarEntrega(_BaseModel):
+    fecha: _date | None = None  # None = quitar la fecha de entrega
+
+
+@router.patch("/ordenes/{orden_id}/entrega", response_model=OrdenRespuesta)
+async def marcar_entrega(
+    orden_id: int, datos: MarcarEntrega,
+    sesion: AsyncSession = Depends(obtener_sesion)
+):
+    """Registra (o quita) la fecha en que se entregó el auto al cliente."""
+    o = await ServicioOrden.obtener(sesion, orden_id)
+    if not o:
+        raise HTTPException(404, "Orden no encontrada")
+    return await ServicioOrden.marcar_entrega(sesion, o, datos.fecha)
