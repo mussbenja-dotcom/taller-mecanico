@@ -20,7 +20,7 @@ from app.modelos import OrdenTrabajo, Auto, Pago
 
 # nombre del taller (configurable por variable de entorno)
 import os
-NOMBRE_TALLER = os.getenv("NOMBRE_TALLER", "Dodorico Mecánica")
+NOMBRE_TALLER = os.getenv("NOMBRE_TALLER", "Mecánica Integral Serra")
 
 
 def _plata(n) -> str:

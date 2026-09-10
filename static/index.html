@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dodorico Mecánica — Sistema de Gestión</title>
+<title>Mecánica Integral Serra — Sistema de Gestión</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -51,7 +51,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
   <div class="h-16 flex items-center justify-between px-6 border-b border-border">
     <div class="flex items-center gap-3 text-xl font-bold">
       <div class="w-8 h-8 rounded bg-gradient-to-br from-primary to-blue-700 flex items-center justify-center"><i class="fa-solid fa-wrench text-white text-sm"></i></div>
-      <span>Dodorico<span class="text-primary"> Mecánica</span></span>
+      <span>Mecánica Integral<span class="text-primary"> Serra</span></span>
     </div>
     <button onclick="cerrarMenu()" class="lg:hidden text-textMuted"><i class="fa-solid fa-xmark text-xl"></i></button>
   </div>
@@ -85,7 +85,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
 <!-- barra superior solo en celular -->
 <div class="lg:hidden h-14 bg-surface border-b border-border flex items-center px-4 gap-3 flex-shrink-0">
   <button onclick="abrirMenu()" class="text-textMain"><i class="fa-solid fa-bars text-xl"></i></button>
-  <span class="font-bold">Dodorico<span class="text-primary"> Mecánica</span></span>
+  <span class="font-bold">Mecánica Integral<span class="text-primary"> Serra</span></span>
 </div>
 <main class="flex-1 bg-background relative overflow-y-auto min-h-0">
 <div class="max-w-7xl mx-auto p-4 lg:p-6 h-full">
@@ -242,7 +242,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <button onclick="if(token)cerrarLogin()" id="btnCerrarLogin" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-background flex items-center justify-center text-textMuted hover:text-textMain hidden"><i class="fa-solid fa-xmark"></i></button>
     <div class="text-center mb-6">
       <div class="w-16 h-16 bg-gradient-to-br from-primary/20 to-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-primary/20"><i class="fa-solid fa-shield-halved text-2xl text-primary"></i></div>
-      <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a Dodorico Mecánica</p>
+      <h2 class="text-2xl font-bold">Bienvenido</h2><p class="text-textMuted text-sm mt-1">Ingresá a Mecánica Integral Serra</p>
     </div>
     <div class="space-y-4">
       <div><label class="block text-sm text-textMuted mb-1.5">Email (dueño) o nombre (empleado)</label>
@@ -509,6 +509,7 @@ function nuevoCliente(){
   editandoCliente=false; clienteActivo=null;
   document.getElementById("tituloCliente").innerHTML='<i class="fa-solid fa-user-plus text-primary"></i> Nuevo cliente';
   ["c_nombre","c_telefono","c_email","c_direccion","c_notas"].forEach(id=>set(id,""));
+  set("c_telefono","+54 9 ");  // prefijo Argentina predefinido, se puede editar
   mostrarPanel("formCliente");
 }
 function mostrarPanel(cual){
@@ -1191,7 +1192,7 @@ function whatsappProveedor(telefono){
 function formProveedor(p){
   document.getElementById("formProveedorCont").innerHTML=`<div class="doc grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
     <input id="p_nombre" class="input-premium col-span-2" placeholder="Nombre del proveedor" value="${p?.nombre||''}">
-    <input id="p_telefono" class="input-premium" placeholder="Teléfono (con código país)" value="${p?.telefono||''}">
+    <input id="p_telefono" class="input-premium" placeholder="Teléfono (con código país)" value="${p?.telefono || '+54 9 '}">
     <input id="p_notas" class="input-premium" placeholder="Notas (opcional)" value="${p?.notas||''}">
     <div class="col-span-2 flex justify-end gap-2"><button onclick="document.getElementById('formProveedorCont').innerHTML=''" class="btn-premium text-sm border border-border">Cancelar</button>
       <button onclick="guardarProveedor(${p?.id||'null'})" class="btn-premium text-sm bg-primary text-white">Guardar</button></div></div>`;
@@ -1315,6 +1316,13 @@ async function subirImportar(){
 }
 
 // ===== CUENTA CORRIENTE =====
+// recordar deuda por WhatsApp (limpia el teléfono y abre el chat con un mensaje)
+function recordarDeuda(telefono){
+  const limpio = (telefono || "").replace(/[^0-9]/g, "");
+  if(!limpio){ alert("Este cliente no tiene un teléfono válido cargado."); return; }
+  const msg = "Hola! Te recordamos que tenés un saldo pendiente en Mecánica Integral Serra. Cualquier duda, escribinos. ¡Gracias!";
+  window.open(`https://wa.me/${limpio}?text=${encodeURIComponent(msg)}`, "_blank");
+}
 async function cargarDeudores(){
   const lista = await api("/api/pagos/deudores");
   const cont = document.getElementById("listaDeudores");
@@ -1331,7 +1339,7 @@ async function cargarDeudores(){
       <div class="flex gap-1 mt-2 flex-wrap">
         <button onclick="abrirPago(${d.orden_id}, ${d.total}, ${d.pagado})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-solid fa-money-bill"></i> Registrar pago</button>
         <button onclick="verComprobante(${d.orden_id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-file-pdf"></i> Comprobante</button>
-        ${d.cliente_telefono?`<button onclick="window.open('https://wa.me/'+'${(d.cliente_telefono||'').replace(/\\D/g,'')}','_blank')" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> Recordar</button>`:''}
+        ${d.cliente_telefono?`<button onclick="recordarDeuda('${d.cliente_telefono}')" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> Recordar</button>`:''}
       </div></div>`).join("");
 }
 async function actualizarAlertaDeuda(){
