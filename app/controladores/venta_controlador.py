@@ -26,3 +26,12 @@ async def obtener(venta_id: int, sesion: AsyncSession = Depends(obtener_sesion))
 @router.post("", response_model=VentaRespuesta, status_code=201)
 async def crear(datos: VentaCrear, sesion: AsyncSession = Depends(obtener_sesion)):
     return await ServicioVenta.crear(sesion, datos)
+
+
+@router.patch("/{venta_id}/pagar", response_model=VentaRespuesta)
+async def marcar_pagada(venta_id: int, sesion: AsyncSession = Depends(obtener_sesion)):
+    """Salda una venta de cuenta corriente (la marca como pagada)."""
+    v = await ServicioVenta.marcar_pagada(sesion, venta_id)
+    if not v:
+        raise HTTPException(404, "Venta no encontrada")
+    return v

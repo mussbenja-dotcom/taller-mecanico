@@ -29,7 +29,9 @@ class Venta(Base):
     cliente_id: Mapped[int | None] = mapped_column(
         ForeignKey("clientes.id", ondelete="SET NULL"), index=True
     )
-    forma_pago: Mapped[str | None] = mapped_column(String(30))  # efectivo, transferencia, tarjeta...
+    forma_pago: Mapped[str | None] = mapped_column(String(30))  # efectivo, transferencia, tarjeta, cuenta_corriente
+    # pagada=True: cobrada en el momento. False: quedó a deber (cuenta corriente).
+    pagada: Mapped[bool] = mapped_column(default=True)
     notas: Mapped[str | None] = mapped_column(Text)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

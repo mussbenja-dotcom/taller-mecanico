@@ -78,6 +78,7 @@ def _migrar_columnas_faltantes(sync_conn):
         "orden_items": [("reservado", "BOOLEAN DEFAULT FALSE NOT NULL")],
         "ordenes_trabajo": [("entregada_en", "TIMESTAMP")],
         "presupuesto_items": [("repuesto_id", "INTEGER")],
+        "ventas": [("pagada", "BOOLEAN DEFAULT TRUE NOT NULL")],
     }
     for tabla, columnas in nuevas.items():
         if tabla not in tablas:

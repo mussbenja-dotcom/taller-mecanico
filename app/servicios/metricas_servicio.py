@@ -81,36 +81,45 @@ class ServicioMetricas:
             )
         )
         ordenes_cerradas_mes = list(res_cierre.scalars().all())
-        total_facturado = Decimal(0)
-        for o in ordenes_cerradas_mes:
-            for it in o.items:
-                total_facturado += Decimal(it.cantidad) * Decimal(it.precio_unitario)
-
-        # --- (b) Cobrado este mes: TODOS los pagos (totales, parciales y
-        # señas) registrados con fecha dentro del período, sin importar el
-        # estado de la orden, MÁS las ventas de mostrador del período (esas
-        # se cobran íntegras en el momento). Es la plata que realmente entró
-        # a caja.
-        res_pagos = await sesion.execute(
-            select(Pago).where(Pago.fecha >= inicio.date(), Pago.fecha < fin.date())
-        )
-        pagos_del_mes = list(res_pagos.scalars().all())
-        cobrado_pagos = sum((Decimal(p.monto) for p in pagos_del_mes), Decimal(0))
-
+        # ================================================================
+        # PLATA QUE ENTRÓ ESTE MES (dividida en dos)
+        # ================================================================
+        # (1) COBRADO DE CONTADO = ventas de mostrador PAGADAS del mes
+        #     (efectivo/transferencia/tarjeta, NO cuenta corriente).
         res_ventas = await sesion.execute(
             select(Venta).options(selectinload(Venta.items))
             .where(Venta.creado_en >= inicio, Venta.creado_en < fin)
         )
         ventas_del_mes = list(res_ventas.scalars().all())
-        total_ventas_mostrador = Decimal(0)
+        cobrado_contado = Decimal(0)
+        fiado_mes = Decimal(0)  # ventas a cuenta corriente de este mes (te deben)
         for v in ventas_del_mes:
-            for it in v.items:
-                total_ventas_mostrador += Decimal(it.cantidad) * Decimal(it.precio_unitario)
+            tot_v = sum((Decimal(it.cantidad) * Decimal(it.precio_unitario) for it in v.items), Decimal(0))
+            if getattr(v, "pagada", True):
+                cobrado_contado += tot_v
+            else:
+                fiado_mes += tot_v
 
-        total_cobrado = cobrado_pagos + total_ventas_mostrador
+        # (2) COBRADO DE DEUDAS = pagos de cuenta corriente (órdenes) hechos
+        #     este mes. Es plata que entró de gente que estaba debiendo.
+        res_pagos = await sesion.execute(
+            select(Pago).where(Pago.fecha >= inicio.date(), Pago.fecha < fin.date())
+        )
+        cobrado_deudas = sum((Decimal(p.monto) for p in res_pagos.scalars().all()), Decimal(0))
 
-        # --- (c) Por cobrar: foto ACTUAL (no del mes) del saldo pendiente
-        # total de todas las órdenes con saldo abierto.
+        # total que entró a caja este mes
+        total_cobrado = cobrado_contado + cobrado_deudas
+
+        # facturado del mes (lo mantengo por compatibilidad: órdenes cerradas)
+        total_facturado = Decimal(0)
+        for o in ordenes_cerradas_mes:
+            for it in o.items:
+                total_facturado += Decimal(it.cantidad) * Decimal(it.precio_unitario)
+
+        # ================================================================
+        # LO QUE TE DEBEN (foto actual, no del mes)
+        # ================================================================
+        # DEUDA TOTAL = saldos pendientes de órdenes + ventas a cuenta corriente
         res_todas = await sesion.execute(
             select(OrdenTrabajo).options(selectinload(OrdenTrabajo.items))
         )
@@ -120,15 +129,25 @@ class ServicioMetricas:
         for p in res_pagos_todos.scalars().all():
             pagado_por_orden[p.orden_id] = pagado_por_orden.get(p.orden_id, Decimal(0)) + Decimal(p.monto)
 
-        total_por_cobrar = Decimal(0)
+        deuda_ordenes = Decimal(0)
         for o in todas_las_ordenes:
             total_orden = sum(
                 (Decimal(it.cantidad) * Decimal(it.precio_unitario) for it in o.items), Decimal(0)
             )
-            pagado = pagado_por_orden.get(o.id, Decimal(0))
-            saldo = total_orden - pagado
+            saldo = total_orden - pagado_por_orden.get(o.id, Decimal(0))
             if saldo > 0:
-                total_por_cobrar += saldo
+                deuda_ordenes += saldo
+
+        # deuda de ventas de mostrador a cuenta corriente (todas, no solo del mes)
+        res_ventas_deuda = await sesion.execute(
+            select(Venta).options(selectinload(Venta.items)).where(Venta.pagada == False)  # noqa: E712
+        )
+        deuda_ventas = Decimal(0)
+        for v in res_ventas_deuda.scalars().all():
+            deuda_ventas += sum((Decimal(it.cantidad) * Decimal(it.precio_unitario) for it in v.items), Decimal(0))
+
+        total_por_cobrar = deuda_ordenes + deuda_ventas
+
 
         # repuestos con stock bajo (foto actual, no del mes)
         res2 = await sesion.execute(select(Repuesto))
@@ -148,11 +167,11 @@ class ServicioMetricas:
         texto = (
             f"En {nombre_mes} de {anio} entraron {creadas} auto(s). "
             f"Se finalizaron {finalizadas} orden(es) y se cobraron {cobradas}. "
-            f"Facturado del mes: ${total_facturado:,.0f}".replace(",", ".") + ". "
-            f"Cobrado del mes: ${total_cobrado:,.0f}".replace(",", ".")
-            + (f" (incluye ${total_ventas_mostrador:,.0f} de ventas de mostrador)".replace(",", ".")
-               if total_ventas_mostrador > 0 else "") + ". "
-            f"Por cobrar (a la fecha): ${total_por_cobrar:,.0f}".replace(",", ".") + ". "
+            f"Entró a caja: ${total_cobrado:,.0f}".replace(",", ".")
+            + f" (${cobrado_contado:,.0f} de contado".replace(",", ".")
+            + f" + ${cobrado_deudas:,.0f} de cobranzas)".replace(",", ".") + ". "
+            + (f"Fiaste ${fiado_mes:,.0f} este mes. ".replace(",", ".") if fiado_mes > 0 else "")
+            + f"Te deben en total: ${total_por_cobrar:,.0f}".replace(",", ".") + ". "
         )
         if stock_bajo:
             texto += f"Atención: {len(stock_bajo)} repuesto(s) con stock bajo."
@@ -166,8 +185,12 @@ class ServicioMetricas:
             "ordenes_cobradas": cobradas,
             "total_facturado": total_facturado,
             "total_cobrado": total_cobrado,
-            "total_ventas_mostrador": total_ventas_mostrador,
+            "cobrado_contado": cobrado_contado,
+            "cobrado_deudas": cobrado_deudas,
+            "fiado_mes": fiado_mes,
             "total_por_cobrar": total_por_cobrar,
+            "deuda_ordenes": deuda_ordenes,
+            "deuda_ventas": deuda_ventas,
             "repuestos_stock_bajo": stock_bajo,
             "resumen": texto,
         }

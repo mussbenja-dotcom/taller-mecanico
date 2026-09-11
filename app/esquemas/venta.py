@@ -25,6 +25,7 @@ class VentaItemRespuesta(BaseModel):
 class VentaCrear(BaseModel):
     cliente_id: int | None = None  # None = venta anónima ("consumidor final")
     forma_pago: str | None = None
+    pagada: bool = True            # False = queda a deber (cuenta corriente)
     notas: str | None = None
     items: list[VentaItemCrear] = []
 
@@ -34,6 +35,7 @@ class VentaRespuesta(BaseModel):
     id: int
     cliente_id: int | None
     forma_pago: str | None
+    pagada: bool = True
     notas: str | None
     creado_en: datetime
     items: list[VentaItemRespuesta] = []

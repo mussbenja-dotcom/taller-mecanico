@@ -31,6 +31,7 @@ def _armar_respuesta(v: Venta) -> dict:
         })
     return {
         "id": v.id, "cliente_id": v.cliente_id, "forma_pago": v.forma_pago,
+        "pagada": v.pagada,
         "notas": v.notas, "creado_en": v.creado_en,
         "items": items, "total": total,
     }
@@ -78,7 +79,12 @@ class ServicioVenta:
             if not cliente:
                 raise HTTPException(404, "Cliente no encontrado")
 
-        venta = Venta(cliente_id=datos.cliente_id, forma_pago=datos.forma_pago, notas=datos.notas)
+        # si es cuenta corriente (a deber), tiene que haber un cliente identificado
+        if not datos.pagada and datos.cliente_id is None:
+            raise HTTPException(400, "Para cuenta corriente hay que elegir un cliente (no puede ser consumidor final).")
+
+        venta = Venta(cliente_id=datos.cliente_id, forma_pago=datos.forma_pago,
+                      pagada=datos.pagada, notas=datos.notas)
 
         for it in datos.items:
             rep = await sesion.get(Repuesto, it.repuesto_id, with_for_update=True)
@@ -107,4 +113,15 @@ class ServicioVenta:
         sesion.add(venta)
         await sesion.commit()
         v = await ServicioVenta.obtener(sesion, venta.id)
+        return _armar_respuesta(v)
+
+    @staticmethod
+    async def marcar_pagada(sesion: AsyncSession, venta_id: int) -> dict | None:
+        """Salda una venta que estaba en cuenta corriente (la marca como pagada)."""
+        venta = await ServicioVenta.obtener(sesion, venta_id)
+        if not venta:
+            return None
+        venta.pagada = True
+        await sesion.commit()
+        v = await ServicioVenta.obtener(sesion, venta_id)
         return _armar_respuesta(v)

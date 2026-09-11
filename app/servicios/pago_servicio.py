@@ -119,6 +119,7 @@ class ServicioPago:
             if saldo > 0 and total > 0:  # solo los que deben algo
                 auto = o.auto
                 salida.append({
+                    "tipo": "orden",
                     "orden_id": o.id, "descripcion": o.descripcion, "estado": o.estado,
                     "auto_desc": " ".join(filter(None, [auto.marca, auto.modelo])) if auto else "",
                     "patente": auto.patente if auto else None,
@@ -127,4 +128,31 @@ class ServicioPago:
                     "total": total, "pagado": pagado, "saldo": saldo,
                     "creado_en": o.creado_en,
                 })
+
+        # sumar las VENTAS DE MOSTRADOR a deber (cuenta corriente)
+        from app.modelos import Venta, VentaItem, Cliente
+        resv = await sesion.execute(
+            select(Venta)
+            .options(selectinload(Venta.items), selectinload(Venta.cliente))
+            .where(Venta.pagada == False)  # noqa: E712
+            .order_by(Venta.creado_en.desc())
+        )
+        for v in resv.scalars().all():
+            total_v = sum((Decimal(it.cantidad) * Decimal(it.precio_unitario) for it in v.items), Decimal(0))
+            if total_v > 0:
+                cli = v.cliente
+                # descripción: los productos vendidos
+                desc = ", ".join(it.descripcion for it in v.items[:3])
+                if len(v.items) > 3:
+                    desc += "..."
+                salida.append({
+                    "tipo": "venta",
+                    "venta_id": v.id, "descripcion": desc or "Venta de mostrador", "estado": "venta",
+                    "auto_desc": "Venta de mostrador", "patente": None,
+                    "cliente_nombre": cli.nombre if cli else None,
+                    "cliente_telefono": cli.telefono if cli else None,
+                    "total": total_v, "pagado": Decimal(0), "saldo": total_v,
+                    "creado_en": v.creado_en,
+                })
+
         return salida

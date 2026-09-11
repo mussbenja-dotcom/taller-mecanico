@@ -305,9 +305,9 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
 
     <div class="grid grid-cols-2 gap-3 mt-4">
       <div><label class="block text-xs text-textMuted mb-1">Forma de pago</label>
-        <select id="venFormaPago" class="input-premium w-full text-sm">
+        <select id="venFormaPago" class="input-premium w-full text-sm" onchange="avisarCuentaCorriente()">
           <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option>
-          <option value="tarjeta">Tarjeta</option><option value="otro">Otro</option></select></div>
+          <option value="tarjeta">Tarjeta</option><option value="cuenta_corriente">Cuenta corriente (a deber)</option><option value="otro">Otro</option></select></div>
       <div><label class="block text-xs text-textMuted mb-1">Notas (opcional)</label>
         <input id="venNotas" class="input-premium w-full text-sm" placeholder="Ej: se llevó 2 filtros"></div>
     </div>
@@ -1064,9 +1064,20 @@ async function cargarMetricas(){
       ${tarjeta(m.autos_ingresados,"Autos ingresados","text-primary")}
       ${tarjeta(m.ordenes_finalizadas,"Órdenes finalizadas","text-success")}
       ${tarjeta(m.ordenes_cobradas,"Órdenes cobradas","text-blue-400")}
-      ${tarjeta(plata(m.total_facturado),"Facturado este mes","text-textMain")}
-      ${tarjeta(plata(m.total_cobrado),"Cobrado este mes","text-success")}
-      ${tarjeta(plata(m.total_por_cobrar),"Por cobrar","text-amber-400")}</div>
+      ${tarjeta(plata(m.total_facturado),"Facturado este mes","text-textMain")}</div>
+
+    <p class="text-xs text-textMuted uppercase font-semibold mt-6 mb-2"><i class="fa-solid fa-arrow-down text-success"></i> Plata que entró este mes</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      ${tarjeta(plata(m.total_cobrado||0),"Entró a caja (total)","text-success")}
+      ${tarjeta(plata(m.cobrado_contado||0),"De contado (ventas al momento)","text-success")}
+      ${tarjeta(plata(m.cobrado_deudas||0),"De cobranzas (pagos de deudas)","text-blue-400")}</div>
+
+    <p class="text-xs text-textMuted uppercase font-semibold mt-6 mb-2"><i class="fa-solid fa-clock text-amber-400"></i> Lo que te deben</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      ${tarjeta(plata(m.total_por_cobrar||0),"Deuda total (te deben)","text-amber-400")}
+      ${tarjeta(plata(m.deuda_ordenes||0),"De órdenes/trabajos","text-amber-400")}
+      ${tarjeta(plata(m.deuda_ventas||0),"De ventas de mostrador","text-amber-400")}
+      ${m.fiado_mes>0?tarjeta(plata(m.fiado_mes),"Fiado este mes (nuevo)","text-textMuted"):''}</div>
     ${reporteCritico}
     <div id="reportePrecios"></div>`;
   cargarEvolucionPrecios();
@@ -1241,6 +1252,16 @@ function abrirVenta(repPreseleccionado){
   const m=document.getElementById("modalVenta"); m.classList.remove("hidden"); m.classList.add("flex");
 }
 function cerrarVenta(){ const m=document.getElementById("modalVenta"); m.classList.add("hidden"); m.classList.remove("flex"); }
+// avisa cuando se elige cuenta corriente que hace falta un cliente
+function avisarCuentaCorriente(){
+  const forma = val("venFormaPago");
+  const msg = document.getElementById("venMsg");
+  if(forma === "cuenta_corriente"){
+    msg.innerHTML = '<span class="text-amber-400">Cuenta corriente: elegí un cliente arriba. La venta quedará como deuda (no se cobra ahora).</span>';
+  } else {
+    msg.textContent = "";
+  }
+}
 function agregarItemVenta(){ itemsVentaTmp.push({repuesto_id:null,descripcion:"",cantidad:1,precio_unitario:0}); pintaItemsVenta(); }
 function quitarItemVenta(i){ itemsVentaTmp.splice(i,1); if(!itemsVentaTmp.length) itemsVentaTmp.push({repuesto_id:null,descripcion:"",cantidad:1,precio_unitario:0}); pintaItemsVenta(); }
 function pintaItemsVenta(){
@@ -1334,12 +1355,18 @@ async function guardarVenta(){
     .filter(it=>it.repuesto_id && parseFloat(it.cantidad)>0)
     .map(it=>({repuesto_id: it.repuesto_id, cantidad: parseFloat(it.cantidad), precio_unitario: parseFloat(it.precio_unitario)||0, descripcion: it.descripcion}));
   if(!items.length){ msg.textContent = "Elegí al menos un repuesto del stock (con su cantidad)."; return; }
+  const formaPago = val("venFormaPago");
+  const esCuentaCorriente = (formaPago === "cuenta_corriente");
+  if(esCuentaCorriente && !ventaClienteId){
+    msg.textContent = "Para cuenta corriente elegí un cliente (no puede ser consumidor final).";
+    return;
+  }
   try{
     await api("/api/ventas", {method:"POST", body:JSON.stringify({
-      cliente_id: ventaClienteId, forma_pago: val("venFormaPago"), notas: val("venNotas")||null, items
+      cliente_id: ventaClienteId, forma_pago: formaPago, pagada: !esCuentaCorriente, notas: val("venNotas")||null, items
     })});
     cerrarVenta();
-    cargarRepuestos(); actualizarAlertaStock();
+    cargarRepuestos(); actualizarAlertaStock(); actualizarAlertaDeuda();
     if(document.getElementById("view-ventas").classList.contains("active")) cargarVentas();
   }catch(e){
     let t="No se pudo registrar la venta."; try{const err=JSON.parse(e.message); if(err.detail)t=err.detail;}catch(_){}
@@ -1525,19 +1552,36 @@ async function cargarDeudores(){
   const cont = document.getElementById("listaDeudores");
   if(!lista.length){ cont.innerHTML='<div class="text-center text-success py-8"><i class="fa-solid fa-circle-check"></i> Nadie debe plata. Todo cobrado.</div>'; return; }
   const totalDeuda = lista.reduce((s,d)=>s+Number(d.saldo),0);
-  cont.innerHTML = `<div class="mb-3 text-sm text-textMuted">Total por cobrar: <b class="text-amber-400">${plata(totalDeuda)}</b> · ${lista.length} orden(es)</div>` +
-    lista.map(d=>`<div class="doc">
+  cont.innerHTML = `<div class="mb-3 text-sm text-textMuted">Total por cobrar: <b class="text-amber-400">${plata(totalDeuda)}</b> · ${lista.length} deuda(s)</div>` +
+    lista.map(d=>{
+      const esVenta = (d.tipo === "venta");
+      const idRef = esVenta ? ('Venta #'+d.venta_id) : ('Orden #'+d.orden_id);
+      // botones según el tipo
+      let botones = '';
+      if(esVenta){
+        botones = `<button onclick="pagarVenta(${d.venta_id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-solid fa-money-bill"></i> Marcar pagada</button>`;
+      } else {
+        botones = `<button onclick="abrirPago(${d.orden_id}, ${d.total}, ${d.pagado})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-solid fa-money-bill"></i> Registrar pago</button>
+        <button onclick="verComprobante(${d.orden_id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-file-pdf"></i> Comprobante</button>`;
+      }
+      return `<div class="doc">
       <div class="flex items-center justify-between">
-        <div><div class="font-medium">${d.cliente_nombre||'—'} <span class="badge-estado est-${d.estado} ml-1">${d.estado}</span></div>
-          <div class="text-textMuted text-xs mt-0.5">${d.descripcion||'Orden'} #${d.orden_id} · ${d.auto_desc||''} ${d.patente?'· '+d.patente:''}</div></div>
+        <div><div class="font-medium">${d.cliente_nombre||'—'} <span class="badge-estado ${esVenta?'bg-primary/20 text-primary':'est-'+d.estado} ml-1">${esVenta?'venta mostrador':d.estado}</span></div>
+          <div class="text-textMuted text-xs mt-0.5">${d.descripcion||''} · ${idRef} ${d.patente?'· '+d.patente:''}</div></div>
         <div class="text-right"><div class="text-amber-400 font-bold">Debe ${plata(d.saldo)}</div>
           <div class="text-textMuted text-xs">Total ${plata(d.total)} · Pagó ${plata(d.pagado)}</div></div>
       </div>
       <div class="flex gap-1 mt-2 flex-wrap">
-        <button onclick="abrirPago(${d.orden_id}, ${d.total}, ${d.pagado})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-solid fa-money-bill"></i> Registrar pago</button>
-        <button onclick="verComprobante(${d.orden_id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-file-pdf"></i> Comprobante</button>
+        ${botones}
         ${d.cliente_telefono?`<button onclick="recordarDeuda('${d.cliente_telefono}')" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> Recordar</button>`:''}
-      </div></div>`).join("");
+      </div></div>`;
+    }).join("");
+}
+// marcar una venta de cuenta corriente como pagada
+async function pagarVenta(ventaId){
+  if(!confirm("¿Marcar esta venta como pagada?"))return;
+  await api(`/api/ventas/${ventaId}/pagar`, {method:"PATCH"});
+  cargarDeudores(); actualizarAlertaDeuda();
 }
 async function actualizarAlertaDeuda(){
   try {
