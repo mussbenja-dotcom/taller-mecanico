@@ -1060,17 +1060,23 @@ async function cargarMetricas(){
   }
   document.getElementById("contenidoMetricas").innerHTML=`
     <div class="bg-surface border border-border rounded-xl p-5 mb-4 text-textMain leading-relaxed">${m.resumen}</div>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
       ${tarjeta(m.autos_ingresados,"Autos ingresados","text-primary")}
       ${tarjeta(m.ordenes_finalizadas,"Órdenes finalizadas","text-success")}
-      ${tarjeta(m.ordenes_cobradas,"Órdenes cobradas","text-blue-400")}
-      ${tarjeta(plata(m.total_facturado),"Facturado este mes","text-textMain")}</div>
+      ${tarjeta(m.ordenes_cobradas,"Órdenes cobradas","text-blue-400")}</div>
 
-    <p class="text-xs text-textMuted uppercase font-semibold mt-6 mb-2"><i class="fa-solid fa-arrow-down text-success"></i> Plata que entró este mes</p>
+    <p class="text-xs text-textMuted uppercase font-semibold mt-6 mb-2"><i class="fa-solid fa-arrow-down text-success"></i> Dinero que entró este mes</p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      ${tarjeta(plata(m.total_cobrado||0),"Entró a caja (total)","text-success")}
+      ${tarjeta(plata(m.total_cobrado||0),"Total entrado a caja","text-success")}
       ${tarjeta(plata(m.cobrado_contado||0),"De contado (ventas al momento)","text-success")}
       ${tarjeta(plata(m.cobrado_deudas||0),"De cobranzas (pagos de deudas)","text-blue-400")}</div>
+
+    <p class="text-xs text-textMuted uppercase font-semibold mt-6 mb-2"><i class="fa-solid fa-wrench text-textMuted"></i> Valor de reparaciones terminadas</p>
+    <div class="bg-surface border border-border rounded-xl p-5 flex items-center justify-between gap-4">
+      <div><div class="text-3xl font-bold text-textMain">${plata(m.total_facturado)}</div>
+        <div class="text-textMuted text-xs uppercase mt-1">Trabajos que se cerraron este mes</div></div>
+      <p class="text-textMuted text-xs max-w-[220px] text-right leading-snug">Es el valor de las reparaciones finalizadas, se hayan cobrado o no. No es lo mismo que el dinero que entró a caja arriba.</p>
+    </div>
 
     <p class="text-xs text-textMuted uppercase font-semibold mt-6 mb-2"><i class="fa-solid fa-clock text-amber-400"></i> Lo que te deben</p>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1550,7 +1556,7 @@ function recordarDeuda(telefono){
 async function cargarDeudores(){
   const lista = await api("/api/pagos/deudores");
   const cont = document.getElementById("listaDeudores");
-  if(!lista.length){ cont.innerHTML='<div class="text-center text-success py-8"><i class="fa-solid fa-circle-check"></i> Nadie debe plata. Todo cobrado.</div>'; return; }
+  if(!lista.length){ cont.innerHTML='<div class="text-center text-success py-8"><i class="fa-solid fa-circle-check"></i> Nadie debe dinero. Todo cobrado.</div>'; return; }
   const totalDeuda = lista.reduce((s,d)=>s+Number(d.saldo),0);
   cont.innerHTML = `<div class="mb-3 text-sm text-textMuted">Total por cobrar: <b class="text-amber-400">${plata(totalDeuda)}</b> · ${lista.length} deuda(s)</div>` +
     lista.map(d=>{
