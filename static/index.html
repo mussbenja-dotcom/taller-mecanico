@@ -62,6 +62,7 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <a onclick="irA('presupuestos')" class="nav-item" data-target="presupuestos" data-rol="admin"><i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> Presupuestos</a>
     <a onclick="irA('ordenes')" class="nav-item" data-target="ordenes" data-rol="todos"><i class="fa-solid fa-clipboard-list w-5 text-center"></i> Órdenes</a>
     <a onclick="irA('stock')" class="nav-item" data-target="stock" data-rol="admin"><i class="fa-solid fa-box-open w-5 text-center"></i> Stock <span id="alertaStock" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 hidden"></span></a>
+    <a onclick="irA('ventas')" class="nav-item" data-target="ventas" data-rol="admin"><i class="fa-solid fa-cash-register w-5 text-center"></i> Ventas de mostrador</a>
     <a onclick="irA('proveedores')" class="nav-item" data-target="proveedores" data-rol="admin"><i class="fa-solid fa-truck w-5 text-center"></i> Proveedores</a>
     <a onclick="irA('usuarios')" class="nav-item" data-target="usuarios" data-rol="admin"><i class="fa-solid fa-user-gear w-5 text-center"></i> Empleados</a>
     <a onclick="irA('cuentacorriente')" class="nav-item" data-target="cuentacorriente" data-rol="admin"><i class="fa-solid fa-money-bill-wave w-5 text-center"></i> Cuenta corriente <span id="alertaDeuda" class="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 hidden"></span></a>
@@ -173,6 +174,14 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     </div>
   </section>
 
+  <!-- VENTAS DE MOSTRADOR -->
+  <section id="view-ventas" class="view-section h-full flex flex-col">
+    <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Ventas de mostrador</h1>
+      <p class="text-sm text-textMuted mt-1">Venta directa de repuestos a un cliente que no tiene un auto cargado (o no lo quiere cargar).</p></div>
+      <button onclick="abrirVenta()" class="btn-premium bg-primary hover:bg-primaryHover text-white"><i class="fa-solid fa-plus"></i> Nueva venta</button></div>
+    <div class="bg-surface border border-border rounded-xl flex-1 overflow-y-auto p-4" id="listaVentas"></div>
+  </section>
+
   <!-- PROVEEDORES -->
   <section id="view-proveedores" class="view-section h-full flex flex-col">
     <div class="flex items-center justify-between mb-6"><div><h1 class="text-2xl font-bold">Proveedores</h1>
@@ -273,6 +282,43 @@ body.sin-sesion aside, body.sin-sesion main, body.sin-sesion .lg\:hidden { displ
     <div class="flex justify-end gap-2 mt-4">
       <button onclick="cerrarCambiarPass()" class="btn-premium border border-border hover:bg-background">Cancelar</button>
       <button onclick="guardarCambiarPass()" class="btn-premium bg-primary text-white">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VENTA DE MOSTRADOR -->
+<div id="modalVenta" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50" onclick="if(event.target===this)cerrarVenta()">
+  <div class="bg-surface border border-border rounded-2xl p-6 max-w-lg w-full mx-4">
+    <h2 class="text-lg font-bold text-success mb-1"><i class="fa-solid fa-cash-register"></i> Venta de mostrador</h2>
+    <p class="text-textMuted text-xs mb-4">Descuenta el stock y queda cobrada en el momento. No hace falta cargar un vehículo.</p>
+
+    <label class="block text-xs text-textMuted mb-1">Cliente (opcional)</label>
+    <div class="relative mb-3">
+      <input id="venCliente" class="input-premium w-full text-sm" placeholder="Buscar cliente por nombre... (vacío = consumidor final)"
+        oninput="buscarClienteVenta(this.value)" onfocus="buscarClienteVenta(this.value)" autocomplete="off">
+      <div id="venClienteSug" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-lg max-h-40 overflow-y-auto shadow-lg"></div>
+    </div>
+
+    <label class="block text-xs text-textMuted mb-1">Ítems</label>
+    <div id="venItems"></div>
+    <button onclick="agregarItemVenta()" class="btn-premium text-xs border border-border mt-1">+ Ítem</button>
+
+    <div class="grid grid-cols-2 gap-3 mt-4">
+      <div><label class="block text-xs text-textMuted mb-1">Forma de pago</label>
+        <select id="venFormaPago" class="input-premium w-full text-sm">
+          <option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option><option value="otro">Otro</option></select></div>
+      <div><label class="block text-xs text-textMuted mb-1">Notas (opcional)</label>
+        <input id="venNotas" class="input-premium w-full text-sm" placeholder="Ej: se llevó 2 filtros"></div>
+    </div>
+
+    <div id="venMsg" class="text-xs text-red-400 mt-3"></div>
+    <div class="flex items-center justify-between mt-4">
+      <div class="text-lg font-bold">Total: <span id="venTotal" class="text-success">$ 0</span></div>
+      <div class="flex gap-2">
+        <button onclick="cerrarVenta()" class="btn-premium border border-border hover:bg-background">Cancelar</button>
+        <button onclick="guardarVenta()" class="btn-premium bg-success text-white"><i class="fa-solid fa-check"></i> Confirmar venta</button>
+      </div>
     </div>
   </div>
 </div>
@@ -395,6 +441,7 @@ function irA(vista) {
   if (vista==='presupuestos') cargarPresupuestosTodos();
   if (vista==='ordenes') cargarOrdenesTodas();
   if (vista==='stock') cargarRepuestos();
+  if (vista==='ventas') cargarVentas();
   if (vista==='proveedores') cargarProveedores();
   if (vista==='usuarios') cargarEmpleados();
   if (vista==='cuentacorriente') cargarDeudores();
@@ -648,6 +695,7 @@ async function renderPresupuestos(autoId){
       <table class="w-full text-xs mt-2">${p.items.map(it=>`<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">${it.cantidad}×${plata(it.precio_unitario)}</td><td class="text-right">${plata(it.subtotal)}</td></tr>`).join("")}</table>
       <div class="flex gap-1 mt-2 flex-wrap">
         <button onclick="enviarWhatsApp('presupuesto',${p.id})" class="btn-premium text-xs bg-success/10 text-success border border-success/20"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
+        <button onclick="verComprobantePresupuesto(${p.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-file-pdf"></i> Comprobante</button>
         <button onclick="ordenDesdePresu(${p.id},${autoId})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">→ Orden</button>
         <button onclick="borrarPresu(${p.id},${autoId})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20">Borrar</button></div></div>`;
   }
@@ -920,7 +968,8 @@ async function cargarRepuestos(){
       <td class="text-textMuted text-xs">${[r.marca_compatible, r.modelo_compatible].filter(Boolean).join(' ') || '<span class="opacity-50">todos</span>'}</td>
       <td class="text-right"><button onclick="ajustar(${r.id},-1)" class="text-textMuted hover:text-red-400 px-1">−</button><b class="${r.stock_bajo?'text-red-400':''}">${r.cantidad}</b><button onclick="ajustar(${r.id},1)" class="text-textMuted hover:text-success px-1">+</button> <span class="text-textMuted text-xs">/ mín ${r.minimo}</span></td>
       <td class="text-right">${plata(r.precio)}</td>
-      <td class="text-right"><button onclick='abrirCompra(${JSON.stringify(r)})' class="text-textMuted hover:text-success px-1" title="Registrar compra"><i class="fa-solid fa-cart-shopping text-xs"></i></button>
+      <td class="text-right"><button onclick='abrirVenta(${JSON.stringify(r)})' class="text-textMuted hover:text-success px-1" title="Vender a un cliente (sin vehículo)"><i class="fa-solid fa-cash-register text-xs"></i></button>
+        <button onclick='abrirCompra(${JSON.stringify(r)})' class="text-textMuted hover:text-success px-1" title="Registrar compra"><i class="fa-solid fa-cart-shopping text-xs"></i></button>
         <button onclick='editarRep(${JSON.stringify(r)})' class="text-textMuted hover:text-primary px-1"><i class="fa-solid fa-pen text-xs"></i></button>
         <button onclick="borrarRep(${r.id})" class="text-textMuted hover:text-red-400 px-1"><i class="fa-solid fa-trash text-xs"></i></button></td></tr>`).join("")}
     </tbody></table>`;
@@ -1015,7 +1064,9 @@ async function cargarMetricas(){
       ${tarjeta(m.autos_ingresados,"Autos ingresados","text-primary")}
       ${tarjeta(m.ordenes_finalizadas,"Órdenes finalizadas","text-success")}
       ${tarjeta(m.ordenes_cobradas,"Órdenes cobradas","text-blue-400")}
-      ${tarjeta(plata(m.total_facturado),"Facturado","text-success")}</div>
+      ${tarjeta(plata(m.total_facturado),"Facturado este mes","text-textMain")}
+      ${tarjeta(plata(m.total_cobrado),"Cobrado este mes","text-success")}
+      ${tarjeta(plata(m.total_por_cobrar),"Por cobrar","text-amber-400")}</div>
     ${reporteCritico}
     <div id="reportePrecios"></div>`;
   cargarEvolucionPrecios();
@@ -1101,6 +1152,7 @@ async function cargarPresupuestosTodos(){
     <div><div class="font-medium">${p.descripcion||"Presupuesto"} <span class="text-textMuted text-xs">#${p.id}</span></div>
       <div class="text-textMuted text-xs mt-0.5">${p.auto_desc||''} ${p.patente?'· '+p.patente:''} · ${p.cliente_nombre||'—'}</div></div>
     <div class="flex items-center gap-3"><span class="text-success font-bold">${plata(p.total)}</span>
+      <button onclick="verComprobantePresupuesto(${p.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-file-pdf"></i></button>
       <button onclick="abrirEnClientePresu(${p.auto_id})" class="btn-premium text-xs bg-primary/10 text-primary border border-primary/20">Ver <i class="fa-solid fa-arrow-right"></i></button></div></div>`).join("");
 }
 async function cargarOrdenesTodas(){
@@ -1169,6 +1221,143 @@ async function guardarCompra(){
     proveedor_id: provSel ? parseInt(provSel) : null
   })});
   cerrarCompra(); cargarRepuestos(); actualizarAlertaStock();
+}
+
+// ===== VENTA DE MOSTRADOR (venta directa de stock, sin vehículo) =====
+let itemsVentaTmp=[];
+let ventaClienteId=null;
+function abrirVenta(repPreseleccionado){
+  ventaClienteId=null;
+  document.getElementById("venCliente").value="";
+  document.getElementById("venFormaPago").value="efectivo";
+  document.getElementById("venNotas").value="";
+  document.getElementById("venMsg").textContent="";
+  itemsVentaTmp = repPreseleccionado
+    ? [{repuesto_id:repPreseleccionado.id,
+        descripcion: repPreseleccionado.codigo ? `${repPreseleccionado.codigo} - ${repPreseleccionado.nombre}` : repPreseleccionado.nombre,
+        cantidad:1, precio_unitario:repPreseleccionado.precio||0}]
+    : [{repuesto_id:null, descripcion:"", cantidad:1, precio_unitario:0}];
+  pintaItemsVenta();
+  const m=document.getElementById("modalVenta"); m.classList.remove("hidden"); m.classList.add("flex");
+}
+function cerrarVenta(){ const m=document.getElementById("modalVenta"); m.classList.add("hidden"); m.classList.remove("flex"); }
+function agregarItemVenta(){ itemsVentaTmp.push({repuesto_id:null,descripcion:"",cantidad:1,precio_unitario:0}); pintaItemsVenta(); }
+function quitarItemVenta(i){ itemsVentaTmp.splice(i,1); if(!itemsVentaTmp.length) itemsVentaTmp.push({repuesto_id:null,descripcion:"",cantidad:1,precio_unitario:0}); pintaItemsVenta(); }
+function pintaItemsVenta(){
+  document.getElementById("venItems").innerHTML = itemsVentaTmp.map((it,i)=>{
+    const sub = (parseFloat(it.cantidad)||0) * (parseFloat(it.precio_unitario)||0);
+    return `<div class="mb-2 relative">
+      <div class="flex gap-1 items-center">
+        <div class="relative flex-1">
+          <input class="input-premium w-full text-xs" placeholder="🔍 Buscar repuesto (código o nombre)..."
+            value="${it.descripcion}" oninput="buscarRepVenta(${i},this.value)" onfocus="buscarRepVenta(${i},this.value)" autocomplete="off">
+          <div id="vensug-${i}" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-lg max-h-48 overflow-y-auto shadow-lg"></div>
+        </div>
+        <input class="input-premium w-14 text-xs" type="number" min="1" value="${it.cantidad}" oninput="itemsVentaTmp[${i}].cantidad=this.value;actualizarTotalVenta()" title="Cantidad">
+        <input class="input-premium w-20 text-xs" type="number" placeholder="$" value="${it.precio_unitario}" oninput="itemsVentaTmp[${i}].precio_unitario=this.value;actualizarTotalVenta()" title="Precio unitario">
+        <span class="text-xs text-success font-semibold w-24 text-right">${sub>0?'= '+plata(sub):''}</span>
+        <button onclick="quitarItemVenta(${i})" class="btn-premium text-xs bg-red-500/10 text-red-400 px-2">✕</button>
+      </div>
+      ${it.repuesto_id ? `<div class="text-xs text-success mt-0.5">✓ Repuesto del stock vinculado</div>` : ''}
+    </div>`;
+  }).join("");
+  actualizarTotalVenta();
+}
+let _timerBusquedaVenta;
+async function buscarRepVenta(i, texto){
+  if(!itemsVentaTmp[i]) return;
+  itemsVentaTmp[i].descripcion = texto;
+  itemsVentaTmp[i].repuesto_id = null;
+  const cont = document.getElementById(`vensug-${i}`);
+  clearTimeout(_timerBusquedaVenta);
+  _timerBusquedaVenta = setTimeout(async ()=>{
+    try{
+      const lista = await api(`/api/repuestos?q=${encodeURIComponent(texto)}`);
+      const conStock = lista.filter(r=>(r.disponible ?? r.cantidad) > 0);
+      if(!conStock.length){
+        cont.innerHTML = '<div class="p-2 text-xs text-textMuted">Sin repuestos con stock disponible para "'+texto+'"</div>';
+        cont.classList.remove("hidden"); return;
+      }
+      cont.innerHTML = conStock.map(r=>{
+        const disp = r.disponible !== undefined ? r.disponible : r.cantidad;
+        const etiqueta = r.stock_bajo ? '<span class="text-amber-400 text-[10px]">bajo ('+disp+' disp.)</span>' : '<span class="text-success text-[10px]">'+disp+' disp.</span>';
+        return `<div class="p-2 text-xs cursor-pointer hover:bg-surfaceHover flex justify-between items-center"
+          onclick="elegirRepVenta(${i},${r.id})">
+          <span>${r.codigo?('<b>'+r.codigo+'</b> · '):''}${r.nombre}</span> ${etiqueta}</div>`;
+      }).join("");
+      cont.classList.remove("hidden");
+    }catch(e){ cont.classList.add("hidden"); }
+  }, 200);
+}
+async function elegirRepVenta(i, repId){
+  if(!itemsVentaTmp[i]) return;
+  document.getElementById(`vensug-${i}`).classList.add("hidden");
+  const rep = await api(`/api/repuestos/${repId}`);
+  if(!rep) return;
+  itemsVentaTmp[i].repuesto_id = rep.id;
+  itemsVentaTmp[i].descripcion = rep.codigo ? `${rep.codigo} - ${rep.nombre}` : rep.nombre;
+  itemsVentaTmp[i].precio_unitario = rep.precio;
+  pintaItemsVenta();
+}
+function actualizarTotalVenta(){
+  const total = itemsVentaTmp.reduce((s,it)=> s + (parseFloat(it.cantidad)||0)*(parseFloat(it.precio_unitario)||0), 0);
+  document.getElementById("venTotal").textContent = plata(total);
+}
+let _timerBusquedaClienteVenta;
+async function buscarClienteVenta(texto){
+  ventaClienteId=null;
+  const cont = document.getElementById("venClienteSug");
+  if(!texto || !texto.trim()){ cont.classList.add("hidden"); return; }
+  clearTimeout(_timerBusquedaClienteVenta);
+  _timerBusquedaClienteVenta = setTimeout(async ()=>{
+    try{
+      const lista = await api(`/api/clientes?q=${encodeURIComponent(texto)}`);
+      if(!lista.length){
+        cont.innerHTML = '<div class="p-2 text-xs text-textMuted">Sin clientes. Se vende como "consumidor final".</div>';
+        cont.classList.remove("hidden"); return;
+      }
+      cont.innerHTML = lista.map(c=>`<div class="p-2 text-xs cursor-pointer hover:bg-surfaceHover" onclick="elegirClienteVenta(${c.id},'${(c.nombre||'').replace(/'/g,"\\'")}')">
+        ${c.nombre}${c.telefono?' · <span class="text-textMuted">'+c.telefono+'</span>':''}</div>`).join("");
+      cont.classList.remove("hidden");
+    }catch(e){ cont.classList.add("hidden"); }
+  }, 200);
+}
+function elegirClienteVenta(id, nombre){
+  ventaClienteId = id;
+  document.getElementById("venCliente").value = nombre;
+  document.getElementById("venClienteSug").classList.add("hidden");
+}
+async function guardarVenta(){
+  const msg = document.getElementById("venMsg");
+  msg.textContent = "";
+  const items = itemsVentaTmp
+    .filter(it=>it.repuesto_id && parseFloat(it.cantidad)>0)
+    .map(it=>({repuesto_id: it.repuesto_id, cantidad: parseFloat(it.cantidad), precio_unitario: parseFloat(it.precio_unitario)||0, descripcion: it.descripcion}));
+  if(!items.length){ msg.textContent = "Elegí al menos un repuesto del stock (con su cantidad)."; return; }
+  try{
+    await api("/api/ventas", {method:"POST", body:JSON.stringify({
+      cliente_id: ventaClienteId, forma_pago: val("venFormaPago"), notas: val("venNotas")||null, items
+    })});
+    cerrarVenta();
+    cargarRepuestos(); actualizarAlertaStock();
+    if(document.getElementById("view-ventas").classList.contains("active")) cargarVentas();
+  }catch(e){
+    let t="No se pudo registrar la venta."; try{const err=JSON.parse(e.message); if(err.detail)t=err.detail;}catch(_){}
+    msg.textContent = t;
+  }
+}
+async function cargarVentas(){
+  const lista = await api("/api/ventas");
+  const cont = document.getElementById("listaVentas");
+  if(!lista.length){ cont.innerHTML='<p class="text-center text-textMuted py-8">Sin ventas de mostrador todavía.</p>'; return; }
+  cont.innerHTML = lista.map(v=>`<div class="doc">
+    <div class="flex justify-between items-center">
+      <b>${v.cliente_nombre || "Consumidor final"} <span class="text-textMuted text-xs">#${v.id} · ${fechaCorta(v.creado_en)}</span></b>
+      <div class="flex items-center gap-2"><span class="text-success font-bold">${plata(v.total)}</span>
+        <button onclick="verComprobanteVenta(${v.id})" class="btn-premium text-xs bg-red-500/10 text-red-400 border border-red-500/20"><i class="fa-solid fa-file-pdf"></i></button></div></div>
+    <table class="w-full text-xs mt-2">${v.items.map(it=>`<tr><td class="py-0.5">${it.descripcion}</td><td class="text-right text-textMuted">${it.cantidad}×${plata(it.precio_unitario)}</td><td class="text-right">${plata(it.subtotal)}</td></tr>`).join("")}</table>
+    <div class="text-textMuted text-xs mt-1">${v.forma_pago?('Pago: '+v.forma_pago):''}${v.notas?(' · '+v.notas):''}</div>
+  </div>`).join("");
 }
 
 // ===== PROVEEDORES =====
@@ -1260,6 +1449,14 @@ async function guardarCambiarPass(){
 function verComprobante(ordenId){
   // abre el PDF en una pestaña nueva (se puede ver, descargar o compartir)
   window.open(`/api/comprobante/orden/${ordenId}`, "_blank");
+}
+function verComprobantePresupuesto(presupuestoId){
+  // mismo patrón que el comprobante de orden, pero para un presupuesto
+  window.open(`/api/comprobante/presupuesto/${presupuestoId}`, "_blank");
+}
+function verComprobanteVenta(ventaId){
+  // mismo patrón, pero para una venta de mostrador
+  window.open(`/api/comprobante/venta/${ventaId}`, "_blank");
 }
 // fecha corta dd/mm para mostrar en botones
 function fechaCorta(iso){

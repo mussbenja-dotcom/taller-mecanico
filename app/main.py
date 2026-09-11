@@ -40,6 +40,7 @@ from app.controladores import (
     proveedor_controlador, compra_controlador,
     usuario_controlador, pago_controlador,
     importacion_controlador, comprobante_controlador,
+    venta_controlador,
 )
 
 
@@ -121,6 +122,7 @@ app.include_router(usuario_controlador.router)
 app.include_router(pago_controlador.router)
 app.include_router(importacion_controlador.router)
 app.include_router(comprobante_controlador.router)
+app.include_router(venta_controlador.router)
 
 
 @app.get("/api/salud")

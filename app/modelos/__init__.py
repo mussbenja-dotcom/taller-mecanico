@@ -11,6 +11,7 @@ from app.modelos.proveedor import Proveedor
 from app.modelos.compra import Compra
 from app.modelos.usuario import Usuario
 from app.modelos.pago import Pago
+from app.modelos.venta import Venta, VentaItem
 
 __all__ = [
     "Cliente", "Auto",
@@ -22,4 +23,5 @@ __all__ = [
     "Compra",
     "Usuario",
     "Pago",
+    "Venta", "VentaItem",
 ]

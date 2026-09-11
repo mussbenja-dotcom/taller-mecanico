@@ -1,5 +1,11 @@
 """
 SERVICIO de Pago = registrar pagos y calcular saldos (cuenta corriente).
+
+Regla nueva: cuando un pago deja la orden saldada (pagado >= total), la
+orden se marca 'cobrada' automáticamente. Si todavía no había pasado por
+'finalizada' (y por lo tanto no se había descontado el stock reservado),
+se fuerza ese paso primero para no romper el inventario -- se reusa
+ServicioOrden.cambiar_estado, que ya sabe hacer ese descuento.
 """
 from decimal import Decimal
 from sqlalchemy import select
@@ -22,7 +28,42 @@ class ServicioPago:
         sesion.add(pago)
         await sesion.commit()
         await sesion.refresh(pago)
+
+        # si con este pago la cuenta corriente de la orden queda saldada,
+        # se marca como "cobrada" sola (no hace falta ir a cambiarla a mano).
+        await ServicioPago._marcar_cobrada_si_saldada(sesion, datos.orden_id)
+
         return pago
+
+    @staticmethod
+    async def _marcar_cobrada_si_saldada(sesion: AsyncSession, orden_id: int) -> None:
+        # import acá adentro para evitar import circular (orden_servicio no
+        # importa pago_servicio, así que esto es seguro)
+        from app.servicios.orden_servicio import ServicioOrden
+
+        res = await sesion.execute(
+            select(OrdenTrabajo).options(selectinload(OrdenTrabajo.items))
+            .where(OrdenTrabajo.id == orden_id)
+        )
+        orden = res.scalar_one_or_none()
+        if not orden or orden.estado == "cobrada":
+            return
+
+        total = _total_orden(orden)
+        if total <= 0:
+            return  # orden sin ítems / sin importe: no hay nada que saldar
+
+        pagos = await ServicioPago.listar_de_orden(sesion, orden_id)
+        pagado = sum((Decimal(p.monto) for p in pagos), Decimal(0))
+        if pagado < total:
+            return  # todavía queda saldo pendiente
+
+        # si no pasó por "finalizada" todavía, se fuerza ese paso primero
+        # (ahí es donde se descuenta el stock reservado; cambiar_estado es
+        # idempotente así que no hay riesgo de descontar dos veces).
+        if orden.estado != "finalizada":
+            await ServicioOrden.cambiar_estado(sesion, orden, "finalizada")
+        await ServicioOrden.cambiar_estado(sesion, orden, "cobrada")
 
     @staticmethod
     async def listar_de_orden(sesion: AsyncSession, orden_id: int) -> list[Pago]:
