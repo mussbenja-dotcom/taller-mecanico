@@ -95,8 +95,8 @@ class ServicioUsuario:
         res = await sesion.execute(select(Usuario).where(Usuario.rol == "admin"))
         if res.scalar_one_or_none():
             return  # ya hay un admin, no hacer nada
-        email = os.getenv("ADMIN_EMAIL", "admin@dodorico.com")
-        password = os.getenv("ADMIN_PASSWORD", "dodorico2025")
+        email = os.getenv("ADMIN_EMAIL", "Info@dodoricoenergy.com.ar")
+        password = os.getenv("ADMIN_PASSWORD", "dodorico2026")
         admin = Usuario(
             usuario=email, nombre="Administrador",
             password_hash=auth.hashear_password(password),

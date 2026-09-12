@@ -1,4 +1,4 @@
-"""Prueba de humo del sistema MVC: verifica que las capas conversan bien."""
+"""Prueba de la Etapa 3: stock, descuento al finalizar y alerta de stock bajo."""
 import asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
@@ -12,42 +12,51 @@ async def main():
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        r = await c.get("/api/salud")
-        assert r.status_code == 200, r.text
-        print("salud:", r.json())
+        cli = (await c.post("/api/clientes", json={"nombre": "Stock Test"})).json()
+        auto = (await c.post(f"/api/clientes/{cli['id']}/autos",
+                             json={"marca": "Ford", "modelo": "Ranger"})).json()
 
-        r = await c.post("/api/clientes", json={
-            "nombre": "Juan Perez", "telefono": "5493462123456"
-        })
-        assert r.status_code == 201, r.text
-        cli = r.json()
-        print("cliente creado:", cli["id"], cli["nombre"])
+        rep = (await c.post("/api/repuestos", json={
+            "nombre": "Filtro de aceite", "codigo": "FA-001",
+            "cantidad": 5, "minimo": 2, "precio": 8000
+        })).json()
+        print("repuesto creado:", rep["nombre"], "| cantidad:", rep["cantidad"], "| bajo:", rep["stock_bajo"])
+        assert rep["cantidad"] == 5 and rep["stock_bajo"] is False
 
-        r = await c.post(f"/api/clientes/{cli['id']}/autos", json={
-            "marca": "Ford", "modelo": "Ranger", "anio": 2019, "kilometraje": 85000
-        })
-        assert r.status_code == 201, r.text
-        auto = r.json()
-        print("auto creado:", auto["marca"], auto["modelo"], "| qr:", auto["qr_token"][:8], "...")
+        orden = (await c.post("/api/ordenes", json={
+            "auto_id": auto["id"], "descripcion": "Service",
+            "items": [
+                {"descripcion": "Filtro de aceite", "cantidad": 3, "precio_unitario": 8000,
+                 "es_repuesto": True, "repuesto_id": rep["id"]},
+                {"descripcion": "Mano de obra", "cantidad": 1, "precio_unitario": 20000,
+                 "es_repuesto": False},
+            ]
+        })).json()
+        print("orden creada:", orden["id"], "| total:", orden["total"])
 
-        r = await c.get(f"/api/clientes/{cli['id']}")
-        assert r.status_code == 200, r.text
-        print("cliente con autos:", len(r.json()["autos"]))
+        r = (await c.get(f"/api/repuestos/{rep['id']}")).json()
+        print("stock antes de finalizar:", r["cantidad"], "(esperado 5)")
+        assert r["cantidad"] == 5
 
-        r = await c.get("/api/clientes", params={"q": "Perez"})
-        print("busqueda:", len(r.json()), "resultado(s)")
+        await c.patch(f"/api/ordenes/{orden['id']}/estado", json={"estado": "finalizada"})
+        r = (await c.get(f"/api/repuestos/{rep['id']}")).json()
+        print("stock tras finalizar:", r["cantidad"], "| stock_bajo:", r["stock_bajo"], "(esperado 2, True)")
+        assert r["cantidad"] == 2 and r["stock_bajo"] is True
 
-        r = await c.put(f"/api/autos/{auto['id']}", json={"kilometraje": 90000})
-        assert r.status_code == 200, r.text
-        print("km actualizado:", r.json()["kilometraje"])
+        await c.patch(f"/api/ordenes/{orden['id']}/estado", json={"estado": "cobrada"})
+        r = (await c.get(f"/api/repuestos/{rep['id']}")).json()
+        print("stock tras cobrar:", r["cantidad"], "(esperado 2)")
+        assert r["cantidad"] == 2
 
-        r = await c.delete(f"/api/clientes/{cli['id']}")
-        assert r.status_code == 204, r.text
-        r = await c.get(f"/api/autos/{auto['id']}")
-        assert r.status_code == 404
-        print("borrado en cascada OK")
+        bajos = (await c.get("/api/repuestos", params={"solo_bajos": "true"})).json()
+        print("repuestos con stock bajo:", len(bajos))
+        assert len(bajos) == 1
 
-    print("\n✅ MVC funcionando: vista → controlador → servicio → modelo")
+        r = (await c.patch(f"/api/repuestos/{rep['id']}/ajustar", json={"delta": 10})).json()
+        print("tras reponer +10:", r["cantidad"], "| bajo:", r["stock_bajo"], "(esperado 12, False)")
+        assert r["cantidad"] == 12 and r["stock_bajo"] is False
+
+    print("\n✅ ETAPA 3 OK: descuento al finalizar, alerta de stock bajo, idempotencia")
 
 
 asyncio.run(main())

@@ -1,41 +1,74 @@
-"""Prueba Etapa C: repuesto_id en presupuestos, compatibilidad marca/modelo, conversión."""
+"""Prueba de la Etapa 2: presupuestos y órdenes de trabajo."""
 import asyncio
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.nucleo.base_datos import engine, Base
-from app import modelos  # noqa
+from app import modelos  # noqa: F401
+
 
 async def main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        cli = (await c.post("/api/clientes", json={"nombre":"T"})).json()
-        auto = (await c.post(f"/api/clientes/{cli['id']}/autos", json={"marca":"Ford","modelo":"Fiesta"})).json()
+        # preparar cliente + auto
+        cli = (await c.post("/api/clientes", json={"nombre": "Taller Test"})).json()
+        auto = (await c.post(f"/api/clientes/{cli['id']}/autos",
+                             json={"marca": "Ford", "modelo": "Ranger"})).json()
+        print("auto:", auto["id"])
 
-        # repuestos: uno genérico, uno compatible Ford Fiesta
-        await c.post("/api/repuestos", json={"nombre":"Filtro generico","cantidad":5,"minimo":1,"precio":100})
-        await c.post("/api/repuestos", json={"nombre":"Filtro Ford","cantidad":5,"minimo":1,"precio":150,"marca_compatible":"Ford","modelo_compatible":"Fiesta"})
+        # crear presupuesto con items
+        presu = (await c.post("/api/presupuestos", json={
+            "auto_id": auto["id"],
+            "descripcion": "Service completo",
+            "items": [
+                {"descripcion": "Filtro de aceite", "cantidad": 1, "precio_unitario": 8000, "es_repuesto": True},
+                {"descripcion": "Aceite 10W40 x4L", "cantidad": 4, "precio_unitario": 6000, "es_repuesto": True},
+                {"descripcion": "Mano de obra", "cantidad": 1, "precio_unitario": 25000, "es_repuesto": False},
+            ]
+        })).json()
+        print("presupuesto creado. total =", presu["total"], "(esperado 57000)")
+        assert str(presu["total"]) == "57000.00" or float(presu["total"]) == 57000, presu["total"]
 
-        # compatibilidad: con marca/modelo, el compatible va primero y marcado
-        lista = (await c.get("/api/repuestos?q=Filtro&marca=Ford&modelo=Fiesta")).json()
-        print("primer resultado:", lista[0]["nombre"], "| compatible:", lista[0]["compatible"])
-        assert lista[0]["compatible"] is True
+        # editar presupuesto (agregar un item)
+        presu2 = (await c.put(f"/api/presupuestos/{presu['id']}", json={
+            "items": [
+                {"descripcion": "Filtro de aire", "cantidad": 1, "precio_unitario": 5000, "es_repuesto": True},
+            ]
+        })).json()
+        print("presupuesto editado. total =", presu2["total"], "(esperado 5000)")
 
-        # presupuesto con repuesto_id
-        presu = (await c.post("/api/presupuestos", json={"auto_id":auto["id"],"descripcion":"S",
-            "items":[{"descripcion":"Filtro Ford","cantidad":2,"precio_unitario":150,"es_repuesto":True,"repuesto_id":2}]})).json()
-        print("presupuesto item repuesto_id:", presu["items"][0]["repuesto_id"], "(esperado 2)")
-        assert presu["items"][0]["repuesto_id"] == 2
+        # crear orden desde el presupuesto
+        orden = (await c.post("/api/ordenes/desde-presupuesto",
+                              json={"presupuesto_id": presu["id"]})).json()
+        print("orden creada desde presupuesto:", orden["id"], "| estado:", orden["estado"], "| items:", len(orden["items"]))
+        assert orden["estado"] == "pendiente"
 
-        # convertir a orden: copia repuesto_id Y reserva stock
-        orden = (await c.post("/api/ordenes/desde-presupuesto", json={"presupuesto_id":presu["id"]})).json()
-        print("orden item repuesto_id:", orden["items"][0]["repuesto_id"], "(esperado 2)")
-        assert orden["items"][0]["repuesto_id"] == 2
-        rep = (await c.get("/api/repuestos/2")).json()
-        print("stock repuesto 2: reservado", rep["reservado"], "disponible", rep["disponible"], "(esperado 2, 3)")
-        assert rep["reservado"] == 2 and rep["disponible"] == 3
+        # cambiar estado a finalizada
+        orden = (await c.patch(f"/api/ordenes/{orden['id']}/estado",
+                               json={"estado": "finalizada"})).json()
+        print("orden finalizada. finalizada_en:", orden["finalizada_en"] is not None)
+        assert orden["finalizada_en"] is not None
 
-    print("\n✅ ETAPA C OK: buscador+compatibilidad en presupuestos, conversión copia vínculo y reserva")
+        # cambiar a cobrada
+        orden = (await c.patch(f"/api/ordenes/{orden['id']}/estado",
+                               json={"estado": "cobrada"})).json()
+        print("orden cobrada. estado:", orden["estado"])
+
+        # ahora SÍ existe el endpoint DELETE, pero requiere admin (sin token = 401)
+        r = await c.delete(f"/api/ordenes/{orden['id']}")
+        print("intento de borrar orden sin token -> status:", r.status_code, "(esperado 401)")
+        assert r.status_code == 401
+
+        # borrar el presupuesto SÍ se puede, y la orden sigue viva
+        r = await c.delete(f"/api/presupuestos/{presu['id']}")
+        assert r.status_code == 204
+        r = await c.get(f"/api/ordenes/{orden['id']}")
+        assert r.status_code == 200
+        print("presupuesto borrado, la orden sigue grabada OK")
+
+    print("\n✅ ETAPA 2 OK: presupuestos editables/borrables, órdenes permanentes")
+
 
 asyncio.run(main())

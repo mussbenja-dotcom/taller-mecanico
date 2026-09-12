@@ -30,7 +30,7 @@ from app.modelos import OrdenTrabajo, Presupuesto, Auto, Pago, Venta
 
 # nombre del taller (configurable por variable de entorno)
 import os
-NOMBRE_TALLER = os.getenv("NOMBRE_TALLER", "Mecánica Integral Serra")
+NOMBRE_TALLER = os.getenv("NOMBRE_TALLER", "Dodorico Mecánica")
 # días de validez de un presupuesto (configurable por variable de entorno)
 DIAS_VALIDEZ_PRESUPUESTO = int(os.getenv("DIAS_VALIDEZ_PRESUPUESTO", "15"))
 
